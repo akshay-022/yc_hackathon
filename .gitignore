@@ -3,3 +3,7 @@ node_modules/
 
 # Ignore .env file
 .env
+
+
+#Ignore .pyc files
+backend/__pycache__/

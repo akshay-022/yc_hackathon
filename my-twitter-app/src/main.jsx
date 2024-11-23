@@ -9,6 +9,7 @@ import Home from './components/Home';
 import { BackendProvider } from './BackendContext';
 
 const BACKEND_URL = 'http://localhost:8000'; // Set your backend URL here
+import PublicChat from './components/PublicChat';
 
 const router = createBrowserRouter([
   {
@@ -22,6 +23,10 @@ const router = createBrowserRouter([
   {
     path: '/auth/callback',
     element: <AuthCallback />
+  },
+  {
+    path: '/chat/:userId',
+    element: <PublicChat />
   }
 ]);
 
