@@ -58,8 +58,8 @@ function SignUp({ onAuthSuccess, onSwitchToSignIn, onSignUpSuccess = () => {} })
 
   return (
     <div className="space-y-4">
-      <h2 className="text-2xl font-semibold text-gray-800 text-center">Create Account</h2>
-      <p className="text-gray-600 text-center">Sign up to get started</p>
+      <h2 className="text-2xl font-semibold text-center text-white">Create Account</h2>
+      <p className="text-gray-600 text-center text-gray-110">Sign up to get started</p>
       
       {isSuccess && (
         <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative text-center">
