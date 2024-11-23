@@ -1,49 +1,31 @@
-import { FaTwitter } from 'react-icons/fa'
-import './App.css'
+import { useNavigate } from 'react-router-dom';
+import SignIn from './components/SignIn';
+import SignUp from './components/SignUp';
 
 function App() {
-  const handleTwitterLogin = async () => {
-    try {
-      const response = await fetch('http://localhost:5000/auth/twitter', {
-        method: 'GET',
-        credentials: 'include'
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        window.location.href = data.auth_url;
-      } else {
-        throw new Error('Failed to initialize Twitter login');
-      }
-    } catch (error) {
-      console.error('Twitter login failed:', error)
-    }
-  }
+  const navigate = useNavigate();
+
+  const handleAuthSuccess = () => {
+    navigate('/twitter-login');
+  };
 
   return (
-    <div className="login-container">
-      <div className="content-wrapper">
-        <div className="logo-section">
-          <h1>Mirror</h1>
-          <p className="tagline">Your real online self.</p>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
+        <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
+        <div className="text-center mb-6">
+          <h1 className="text-3xl font-bold text-gray-800">Mirror</h1>
+          <p className="text-gray-600">Your real online self.</p>
         </div>
         
-        <div className="login-section">
-          <div className="login-card">
-            <h2>Welcome Back</h2>
-            <p className="subtitle">Connect your Twitter account to continue</p>
-            <button
-              onClick={handleTwitterLogin}
-              className="twitter-button"
-            >
-              <FaTwitter className="twitter-icon" />
-              Continue with Twitter
-            </button>
-          </div>
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold text-gray-700">Welcome Back</h2>
+          <p className="text-gray-500">Sign in or sign up to continue</p>
+          <SignIn onAuthSuccess={handleAuthSuccess} />
+          <SignUp onAuthSuccess={handleAuthSuccess} />
         </div>
       </div>
     </div>
-  )
+  );
 }
 
-export default App
+export default App;
