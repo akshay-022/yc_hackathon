@@ -419,12 +419,10 @@ async def process_message_public(request: Request):
             print('No conversation ID. Creating a new conversation...')
             conversation_response = supabase.table('conversations') \
                 .insert({'user_id': 'public', 'title': f"Public Chat with User {user_id}"}) \
-                .select() \
-                .single() \
                 .execute()
             if not conversation_response.data:
                 raise HTTPException(status_code=500, detail="Failed to create a new conversation")
-            conversation_id = conversation_response.data['id']
+            conversation_id = conversation_response.data[0]['id']
             print('New conversation ID:', conversation_id)
 
         # Insert user message
