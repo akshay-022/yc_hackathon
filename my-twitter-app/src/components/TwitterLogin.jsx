@@ -1,32 +1,17 @@
-import { FaTwitter } from 'react-icons/fa';
+import { supabase } from '../supabaseClient';
 
 function TwitterLogin() {
   const handleTwitterLogin = async () => {
-    try {
-      const response = await fetch('http://localhost:5000/auth/twitter', {
-        method: 'GET',
-        credentials: 'include'
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        window.location.href = data.auth_url;
-      } else {
-        throw new Error('Failed to initialize Twitter login');
-      }
-    } catch (error) {
-      console.error('Twitter login failed:', error);
-    }
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'twitter',
+    });
+    if (error) console.error('Error logging in with Twitter:', error.message);
   };
 
   return (
-    <div className="twitter-login-container">
-      <h2>Connect to Twitter</h2>
-      <button onClick={handleTwitterLogin} className="twitter-button">
-        <FaTwitter className="twitter-icon" />
-        Continue with Twitter
-      </button>
-    </div>
+    <button onClick={handleTwitterLogin}>
+      Login with Twitter
+    </button>
   );
 }
 

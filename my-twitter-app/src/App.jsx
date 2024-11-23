@@ -1,6 +1,8 @@
 import { useNavigate } from 'react-router-dom';
 import SignIn from './components/SignIn';
 import SignUp from './components/SignUp';
+import TwitterLogin from './components/TwitterLogin';
+import NotionLogin from './components/NotionLogin';
 
 function App() {
   const navigate = useNavigate();
@@ -22,6 +24,8 @@ function App() {
           <p className="text-gray-500">Sign in or sign up to continue</p>
           <SignIn onAuthSuccess={handleAuthSuccess} />
           <SignUp onAuthSuccess={handleAuthSuccess} />
+          <TwitterLogin />
+          <NotionLogin />
         </div>
       </div>
     </div>
