@@ -4,6 +4,7 @@ import { supabase } from '../supabaseClient';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faTwitter } from '@fortawesome/free-brands-svg-icons';
 import { faN } from '@fortawesome/free-solid-svg-icons';
+import { useBackend } from '../BackendContext';
 import Chat from './Chat';
 import AddContent from './AddContent';
 
@@ -15,7 +16,9 @@ function Home() {
     twitter: false,
     notion: false
   });
+  const [hasUserContent, setHasUserContent] = useState(false);
   const navigate = useNavigate();
+  const backendUrl = useBackend();
 
   useEffect(() => {
     // Check if user is authenticated and fetch profile
@@ -48,6 +51,11 @@ function Home() {
         if (profile?.username) {
           setUsername(profile.username);
         }
+
+        // Check if user has any content
+        const response = await fetch(`${backendUrl}/api/user-documents/${user.id}`);
+        const result = await response.json();
+        setHasUserContent(result.documents.length > 0);
       } catch (error) {
         console.error('Error fetching user:', error);
         navigate('/');
@@ -69,6 +77,10 @@ function Home() {
       subscription?.unsubscribe();
     };
   }, [navigate]);
+
+  const handleContentAdded = () => {
+    setHasUserContent(true);
+  };
 
   // Show loading state
   if (isLoading) {
@@ -169,24 +181,10 @@ function Home() {
       {/* Main content with fixed height */}
       <div className="h-screen pt-4 px-4 pb-4">
         <div className="h-[calc(100%-1rem)] max-w-[90%] mx-auto grid grid-cols-[1fr_1fr] gap-4">
-          {/* Left side - Message Input */}
+          {/* Left side - Add Content */}
           {authStatus.twitter && (
             <div className="h-full bg-black-secondary rounded-lg shadow-lg p-4 flex flex-col">
-              <h2 className="text-2xl font-bold mb-4">Your Message</h2>
-              <div className="flex-1 flex flex-col min-h-0">
-                <textarea
-                  placeholder="Type your message or paste a URL..."
-                  className="flex-1 p-4 bg-black-primary text-white rounded-lg border border-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none mb-4"
-                />
-                <div className="flex justify-end space-x-3">
-                  <button className="px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-600 transition duration-300">
-                    Clear
-                  </button>
-                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition duration-300">
-                    Send
-                  </button>
-                </div>
-              </div>
+              <AddContent onContentAdded={handleContentAdded} />
             </div>
           )}
 
@@ -196,11 +194,11 @@ function Home() {
             <div className="bg-black-secondary rounded-lg shadow-lg p-4">
               <div className="text-center mb-4">
                 <h1 className="text-2xl font-bold text-white">
-                  {authStatus.twitter ? 'Mirror' : 'Hello'}, {username}
+                  Hello, {username}
                 </h1>
                 <p className="text-sm text-gray-400 mt-2">
                   {authStatus.twitter 
-                    ? 'Connect additional services'
+                    ? 'Your Twitter account is connected, access your digital conscience below.'
                     : 'Please connect your Twitter account to continue'
                   }
                 </p>
@@ -247,7 +245,7 @@ function Home() {
               <div className="flex-1 bg-black-secondary rounded-lg shadow-lg p-4 min-h-0 flex flex-col">
                 <h2 className="text-2xl font-bold mb-4">Mirror Chat</h2>
                 <div className="flex-1 min-h-0">
-                  <Chat />
+                  <Chat hasUserContent={hasUserContent} username={username} />
                 </div>
               </div>
             )}
