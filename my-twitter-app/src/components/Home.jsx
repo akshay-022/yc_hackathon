@@ -17,6 +17,10 @@ function Home() {
     notion: false
   });
   const [hasUserContent, setHasUserContent] = useState(false);
+  const [message, setMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [copyStatus, setCopyStatus] = useState('');
+  const [publicUrl, setPublicUrl] = useState('');
   const navigate = useNavigate();
   const backendUrl = useBackend();
 
@@ -126,19 +130,81 @@ function Home() {
     if (error) console.error('Notion authentication error:', error.message);
   };
 
-  const handleShowSession = async () => {
-    const { data: { session }, error } = await supabase.auth.getSession();
-    if (error) {
-      console.error('Error fetching session:', error.message);
-      return;
+  const handleNotionSync = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('No access token found');
+
+      const response = await fetch('http://localhost:8000/sync/notion', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ access_token: session.access_token }),
+      });
+
+      if (!response.ok) throw new Error('Failed to sync Notion content');
+
+      const data = await response.json();
+      console.log('Notion sync successful:', data);
+      // Optionally add a toast/notification here
+    } catch (error) {
+      console.error('Error syncing Notion content:', error);
+      // Optionally add error handling UI feedback
     }
+  };
+
+  const handleSubmit = async () => {
+    if (!message.trim()) return;
     
-    console.log('Current Session Data:', {
-      accessToken: session?.access_token,
-      providerToken: session?.provider_token,
-      user: session?.user,
-      expiresAt: session?.expires_at
-    });
+    setIsSubmitting(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('No user found');
+
+      const response = await fetch('http://localhost:8000/api/process-content', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: message,
+          user_id: user.id
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to process content');
+      }
+
+      const data = await response.json();
+      console.log('Content processed:', data);
+      
+      // Clear the message after successful submission
+      setMessage('');
+      
+    } catch (error) {
+      console.error('Error processing content:', error);
+      // Optionally add error feedback to the UI
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleShowPublicLink = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.error('No user found');
+        return;
+      }
+      
+      const url = `${window.location.origin}/chat/${user.id}`;
+      setPublicUrl(url);
+      
+    } catch (error) {
+      console.error('Error generating public link:', error);
+    }
   };
 
   const ConnectedBadge = () => (
@@ -228,14 +294,38 @@ function Home() {
                 </div>
               </div>
               
-              {authStatus.twitter && (
+              {authStatus.twitter && authStatus.notion && (
                 <div className="mt-4">
                   <button 
-                    onClick={handleShowSession}
+                    onClick={handleNotionSync}
                     className="w-full bg-purple-600 text-white py-2 rounded-md hover:bg-purple-700 transition duration-300"
                   >
-                    Show Current Session
+                    Sync Notion Content
                   </button>
+                </div>
+              )}
+
+              {authStatus.twitter && (
+                <div className="mt-4 space-y-2">
+                  <button 
+                    onClick={handleShowPublicLink}
+                    className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition duration-300"
+                  >
+                    Show Public Chat Link
+                  </button>
+                  
+                  {publicUrl && (
+                    <div className="mt-2 p-2 bg-gray-800 rounded-md">
+                      <p className="text-sm text-gray-400 mb-1">Your public chat link:</p>
+                      <input
+                        type="text"
+                        value={publicUrl}
+                        readOnly
+                        className="w-full bg-gray-900 text-white p-2 rounded border border-gray-700 text-sm font-mono"
+                        onClick={e => e.target.select()}
+                      />
+                    </div>
+                  )}
                 </div>
               )}
             </div>

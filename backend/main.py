@@ -3,15 +3,22 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from supabase import create_client, Client
+from notion_client import AsyncClient
 import os
 from dotenv import load_dotenv
 from typing import Optional
 from uuid import UUID, uuid4
 from agent import AIClient
+import traceback
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from app_integrations.content_middleware import get_complete_content
 
 # Load environment variables from .env file
 load_dotenv()
-from notion_client import Client as NotionClient
+import logging
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
@@ -252,79 +259,139 @@ def batch_insert_scraped_content(records: list):
         return None
     
 
+class TokenRequest(BaseModel):
+    access_token: str
+
+async def get_blocks_recursively(notion_client, block_id, blocks):
+    children = await notion_client.blocks.children.list(block_id=block_id, page_size=100)
+    blocks.extend(children.get('results', []))
+
+    for child in children.get('results', []):
+        # If the block has children, recursively fetch them
+        if child.get('has_children'):
+            await get_blocks_recursively(notion_client, child['id'], blocks)
+
 @app.post("/sync/notion")
-async def sync_notion_content(access_token: str):
-    """
-    Syncs Notion content for a user and stores it in the scraped_content table
-    """
+async def sync_notion_content(request: TokenRequest):
     try:
-        # Get Notion token using the existing provider token endpoint
-        provider_response = await get_provider_token('notion', access_token)
+        logger.debug(f"Received token request: {request}")
+        provider_response = await get_provider_token('notion', request.access_token)
+        logger.debug(f"Provider response: {provider_response}")
         notion_token = provider_response['identity']['access_token']
         user_id = provider_response['identity']['user_id']
+
+        # Scrape all pages and blocks from Notion
+        notion_client = AsyncClient(auth=notion_token)
         
-        # Initialize Notion client
-        notion = NotionClient(auth=notion_token)
-        
-        # Get all pages user has access to
-        pages = []
-        cursor = None
-        while True:
-            response = notion.search(
-                **({'start_cursor': cursor} if cursor else {})
-            )
-            pages.extend(response['results'])
-            
-            if not response['has_more']:
-                break
-            cursor = response['next_cursor']
-        
-        # Process and store pages
-        records = []
-        for page in pages:
-            if page['object'] == 'page':
-                # Get page content
-                page_content = notion.blocks.children.list(page['id'])
-                
-                # Convert blocks to text (simplified)
-                content = ""
-                for block in page_content['results']:
-                    if 'paragraph' in block:
-                        if 'rich_text' in block['paragraph']:
-                            for text in block['paragraph']['rich_text']:
-                                if 'text' in text:
-                                    content += text['text']['content'] + "\n"
-                
-                records.append({
-                    'user_id': user_id,
-                    'scrape_source': 'notion',
-                    'content': content,
-                    'metadata': {
-                        'page_id': page['id'],
-                        'title': page.get('properties', {}).get('title', {}).get('title', [{}])[0].get('text', {}).get('content', 'Untitled')
-                    }
-                })
-        
-        # Batch insert into database
-        if records:
-            result = batch_insert_scraped_content(records)
-            return {
-                "status": "success",
-                "pages_synced": len(records),
-                "data": result
+        # Fetch all pages and databases
+        all_pages = await get_all_pages_and_databases(notion_client)
+        logger.debug(f"Fetched {len(all_pages)} pages/databases.")
+
+        # Initialize a list to store all blocks
+        all_blocks = []
+
+        # Fetch blocks for each page
+        for page in all_pages:
+            page_blocks = []
+            await get_blocks_recursively(notion_client, page['id'], page_blocks)
+            all_blocks.append({
+                'page_id': page['id'],
+                'blocks': page_blocks
+            })
+            logger.debug(f"Fetched {len(page_blocks)} blocks for page {page['id']}.")
+
+        # Here you can process or store the fetched pages and blocks as needed
+        # For example, save them to your database or file system
+
+        return {"status": "success", "message": "Notion content synced"}
+    except Exception as e:
+        logger.error(f"Error syncing Notion content: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+async def get_all_pages_and_databases(notion_client):
+    pages = []
+    next_cursor = None
+
+    while True:
+        response = await notion_client.search(
+            **{
+                "filter": {"property": "object", "value": "page"},
+                "start_cursor": next_cursor,
+                "page_size": 100,
             }
+        )
+        pages.extend(response.get('results', []))
+        next_cursor = response.get('next_cursor')
+        if not response.get('has_more'):
+            break
+
+    return pages
+
+async def get_provider_token(provider: str, access_token: str):
+    try:
+        response = supabase.auth.get_user(access_token)
+        if not response.user:
+            raise HTTPException(status_code=401, detail="Invalid access token")
+            
+        identities = response.user.identities
+        notion_identity = next((i for i in identities if i.provider == provider), None)
+        
+        # Debug log to see the structure
+        logger.debug(f"Notion identity object: {notion_identity}")
+        print(f"Notion identity object: {notion_identity}")
+        
+        if not notion_identity:
+            raise HTTPException(status_code=404, detail=f"No {provider} connection found")
+        
+
+        return {
+            "identity": {
+                "access_token": notion_identity.identity_data.get('provider_id'),
+                "user_id": response.user.id
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+class ContentProcessRequest(BaseModel):
+    text: str
+    # user_id: str is not optional
+    user_id: str
+
+@app.post("/api/process-content")
+async def process_content(request: ContentProcessRequest):
+    """
+    Process text to extract and fetch content from all URLs.
+    
+    Args:
+        request (ContentProcessRequest): Request containing text with URLs
+    
+    Returns:
+        dict: Processed text with URL contents
+    """
+    try:
+        logger.debug(f"Processing content request: {request.text}")
+        
+        # Process the content using get_complete_content
+        processed_text = get_complete_content(request.text)
+        
+        # Reuse add_content logic
+        content_request = ContentRequest(
+            content=processed_text,
+            user_id=request.user_id if hasattr(request, 'user_id') else None
+        )
+        
+        result = await add_content(content_request)
         
         return {
-            "status": "success",
-            "pages_synced": 0,
-            "message": "No pages found to sync"
+            "message": "Content processed successfully",
+            "processed_text": processed_text,
+            **result
         }
         
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to sync Notion content: {str(e)}"
-        )
+        logger.error(f"Error processing content: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn
@@ -332,7 +399,7 @@ if __name__ == "__main__":
     # Run the FastAPI server
     uvicorn.run(
         "main:app",
-        host="0.0.0.0",  # Allows external access
+        host="localhost",  # Allows external access
         port=8000,       # Port number
         reload=True      # Auto-reload on code changes
     )
