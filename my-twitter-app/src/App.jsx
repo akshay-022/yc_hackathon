@@ -11,6 +11,10 @@ function App() {
     navigate('/home');
   };
 
+  const handleSignUpSuccess = () => {
+    console.log('Sign up successful!');
+  };
+
   const toggleAuthMode = () => {
     setIsSignUp((prev) => !prev);
   };
@@ -24,7 +28,7 @@ function App() {
         </div>
 
         {isSignUp ? (
-          <SignUp onAuthSuccess={handleAuthSuccess} onSignUpSuccess={handleAuthSuccess} />
+          <SignUp onAuthSuccess={handleAuthSuccess} onSignUpSuccess={handleSignUpSuccess} />
         ) : (
           <SignIn onAuthSuccess={handleAuthSuccess} onSwitchToSignUp={toggleAuthMode} />
         )}

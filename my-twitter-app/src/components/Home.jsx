@@ -6,6 +6,8 @@ import { faTwitter } from '@fortawesome/free-brands-svg-icons';
 import { faN } from '@fortawesome/free-solid-svg-icons';
 import Chat from './Chat';
 
+
+
 function Home() {
   const [username, setUsername] = useState('User');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -81,6 +83,9 @@ function Home() {
   const handleTwitterAuth = async () => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'twitter',
+      options: {
+        redirectTo: `${window.location.origin}/home`
+      }
     });
     if (error) console.error('Twitter authentication error:', error.message);
   };
@@ -88,8 +93,26 @@ function Home() {
   const handleNotionAuth = async () => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'notion',
+      options: {
+        redirectTo: `${window.location.origin}/home`
+      }
     });
     if (error) console.error('Notion authentication error:', error.message);
+  };
+
+  const handleShowSession = async () => {
+    const { data: { session }, error } = await supabase.auth.getSession();
+    if (error) {
+      console.error('Error fetching session:', error.message);
+      return;
+    }
+    
+    console.log('Current Session Data:', {
+      accessToken: session?.access_token,
+      providerToken: session?.provider_token,
+      user: session?.user,
+      expiresAt: session?.expires_at
+    });
   };
 
   return (
@@ -127,6 +150,15 @@ function Home() {
             >
               <FontAwesomeIcon icon={faN} className="w-5 h-5" />
               Authenticate with Notion
+            </button>
+          </div>
+          
+          <div className="mt-4">
+            <button 
+              onClick={handleShowSession}
+              className="w-full bg-purple-600 text-white py-2 rounded-md hover:bg-purple-700 transition duration-300"
+            >
+              Show Current Session
             </button>
           </div>
         </div>
