@@ -1,102 +1,119 @@
 # main.py
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from supabase import create_client, Client
-from typing import Optional, Dict
 import os
+from dotenv import load_dotenv
+from typing import Optional
+from uuid import UUID
+from agent import generate_embeddings
+
+# Load environment variables from .env file
+load_dotenv()
 
 app = FastAPI()
 
+# Configure CORS to allow all localhost origins
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",     # Frontend
+        "http://localhost:5173",     # Vite dev server
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Initialize Supabase client
-SUPABASE_URL = os.getenv("VITE_SUPABASE_URL")
-SUPABASE_KEY = os.getenv("VITE_SUPABASE_ANON_KEY")
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+supabase_url = os.getenv("SUPABASE_URL")
+supabase_key = os.getenv("SUPABASE_KEY")
 
-async def get_user_session(access_token: str) -> Optional[dict]:
-    """
-    Get user session information using their access token
-    """
-    try:
-        # Get user data from the access token
-        response = supabase.auth.get_user(access_token)
-        return response.user
-    except Exception as e:
-        raise HTTPException(status_code=401, detail="Invalid access token")
+if not supabase_url or not supabase_key:
+    raise ValueError("Missing required environment variables")
 
-@app.get("/user/session")
-async def get_session(access_token: str):
-    """
-    Endpoint to get user session information
-    """
-    try:
-        user = await get_user_session(access_token)
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-        
-        return {
-            "user_id": user.id,
-            "email": user.email,
-            "last_sign_in": user.last_sign_in_at,
-            "user_metadata": user.user_metadata
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+supabase: Client = create_client(supabase_url, supabase_key)
 
-@app.get("/user/auth-status")
-async def check_auth_status(access_token: str):
-    """
-    Check if a user's auth token is valid
-    """
-    try:
-        user = await get_user_session(access_token)
-        return {
-            "is_authenticated": bool(user),
-            "user_id": user.id if user else None
-        }
-    except Exception as e:
-        return {
-            "is_authenticated": False,
-            "error": str(e)
-        }
+@app.get("/")
+async def root():
+    return supabase.table('conversations').select('*').execute()
 
-@app.get("/user/provider-token/{provider}")
-async def get_provider_token(provider: str, access_token: str):
-    """
-    Get auth provider token (twitter/notion) for a user
-    
-    Args:
-        provider: 'twitter' or 'notion'
-        access_token: User's Supabase access token
-    """
+class MessageRequest(BaseModel):
+    conversation_id: int
+    user_id: Optional[UUID]
+    content: str
+
+class ContentRequest(BaseModel):
+    user_id: str
+    content: str
+
+@app.post("/api/add-content")
+async def add_content(request: ContentRequest):
     try:
-        # First verify the user
-        user_response = supabase.auth.get_user(access_token)
-        user = user_response.user
-        
-        if not user:
-            raise HTTPException(status_code=401, detail="Invalid access token")
-        
-        # The provider tokens are stored in user.identities
-        identities = user.identities
-        if not identities:
-            raise HTTPException(status_code=404, detail="No identities found")
-            
-        # Find the specific provider
-        provider_identity = next(
-            (i for i in identities if i['provider'] == provider), 
-            None
-        )
-        
-        if not provider_identity:
-            raise HTTPException(
-                status_code=404, 
-                detail=f"No {provider} identity found"
-            )
-            
-        return {
-            "provider": provider,
-            "identity": provider_identity
-        }
-        
+        # Generate embeddings using the agent
+        embedding = generate_embeddings(request.content)
+        print(len(embedding))
+        if embedding is None:
+            raise HTTPException(status_code=500, detail="Failed to generate embeddings")
+
+        # Insert content and embeddings into the scraped_content table
+        response = supabase.table('scraped_content').insert({
+            'user_id': request.user_id,
+            'content': request.content,
+            'embeddings': embedding,
+            'scrape_source': 'user'
+        }).execute()
+
+        if response.error:
+            raise HTTPException(status_code=500, detail=str(response.error))
+
+        return {"message": "Content added successfully"}
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/process-message")
+async def process_message(request: Request):
+    try:
+        body = await request.json()
+        print(f"Raw request body: {body}")
+        message_request = MessageRequest(**body)
+        print(f"Parsed request: {message_request}")
+
+        # Generate bot response (placeholder - replace with your AI logic)
+        bot_response_content = f"I received your message: {message_request.content}"
+        print(f"Generated bot response: {bot_response_content}")
+
+        # Insert the bot's response into the messages table
+        bot_message = {
+            'content': bot_response_content,
+            'conversation_id': message_request.conversation_id,
+            'is_bot': True
+        }
+
+        print(f"Inserting bot message into database: {bot_message}")
+        bot_response = supabase.table('messages').insert(bot_message).execute()
+        print(f"Database response: {bot_response}")
+
+        if bot_response.status_code != 201:
+            raise HTTPException(status_code=500, detail="Failed to insert bot message")
+
+        return {
+            "reply": {
+                "content": bot_response_content,
+                "conversation_id": message_request.conversation_id,
+                "is_bot": True
+            }
+        }
+
+    except Exception as e:
+        print(f"Exception occurred: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
 

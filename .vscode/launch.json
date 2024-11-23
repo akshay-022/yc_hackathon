@@ -1,0 +1,32 @@
+{
+    "configurations": [
+        {
+            "name": "Python Debugger: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            },
+            "python": "${command:python.interpreterPath}",
+            "args": [],
+            "envFile": "${workspaceFolder}/.env",
+            "preLaunchTask": "Activate Supabase Conda Environment"
+        },
+        {
+            "name": "Python Debugger: Python File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            },
+            "python": "${command:python.interpreterPath}",
+            "args": [],
+            "envFile": "${workspaceFolder}/.env",
+            "preLaunchTask": "Activate Supabase Conda Environment"
+        }
+    ]
+}

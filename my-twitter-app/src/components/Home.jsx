@@ -5,6 +5,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faTwitter } from '@fortawesome/free-brands-svg-icons';
 import { faN } from '@fortawesome/free-solid-svg-icons';
 import Chat from './Chat';
+import AddContent from './AddContent';
 
 function Home() {
   const [username, setUsername] = useState('User');
@@ -131,7 +132,12 @@ function Home() {
           </div>
         </div>
 
-        {/* Chat component below authentication buttons */}
+        {/* AddContent component below authentication buttons */}
+        <div className="mt-8 w-full max-w-md">
+          <AddContent />
+        </div>
+
+        {/* Chat component below AddContent */}
         <div className="mt-8 w-full max-w-md">
           <Chat />
         </div>
