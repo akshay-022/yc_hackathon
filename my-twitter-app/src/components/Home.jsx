@@ -247,7 +247,11 @@ function Home() {
 
       {/* Main content with fixed height */}
       <div className="h-screen pt-4 px-4 pb-4">
-        <div className="h-[calc(100%-1rem)] max-w-[90%] mx-auto grid grid-cols-[1fr_1fr] gap-4">
+        <div className={`h-[calc(100%-1rem)] max-w-[90%] mx-auto ${
+          !authStatus.twitter 
+            ? 'flex justify-center items-start' 
+            : 'grid grid-cols-[1fr_1fr]'
+        } gap-4`}>
           {/* Left side - Add Content */}
           {authStatus.twitter && (
             <div className="h-full bg-black-secondary rounded-lg shadow-lg p-4 flex flex-col">
@@ -255,8 +259,8 @@ function Home() {
             </div>
           )}
 
-          {/* Right side - Split into Auth (top) and Chat (bottom) */}
-          <div className="h-full flex flex-col gap-4">
+          {/* Right side - Auth box will be centered when not authenticated */}
+          <div className={`h-full flex flex-col gap-4 ${!authStatus.twitter ? 'w-[500px]' : ''}`}>
             {/* Auth Content - Top */}
             <div className="bg-black-secondary rounded-lg shadow-lg p-4">
               <div className="text-center mb-4">
