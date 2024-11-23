@@ -13,6 +13,7 @@ import traceback
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app_integrations.content_middleware import get_complete_content
+from datetime import datetime 
 
 # Load environment variables from .env file
 load_dotenv()
@@ -401,7 +402,7 @@ async def process_message_public(request: Request):
         print(f"Raw request body: {body}")
         
         # Required fields validation
-        required_fields = ['conversation_id', 'user_id', 'content']
+        required_fields = ['user_id', 'content']
         for field in required_fields:
             if field not in body:
                 raise HTTPException(
@@ -409,21 +410,31 @@ async def process_message_public(request: Request):
                     detail=f"Missing required field: {field}"
                 )
         
-        conversation_id = body['conversation_id']
-        user_id = body['user_id']  # The user whose content we're using
+        user_id = body['user_id']
         content = body['content']
+        conversation_id = body.get('conversation_id')
 
-        # Verify this is a public conversation
-        conversation_response = supabase.table('conversations') \
-            .select('*') \
-            .eq('id', conversation_id) \
-            .execute()
+        # Create a new conversation if conversation_id is null
+        if not conversation_id:
+            print('No conversation ID. Creating a new conversation...')
+            conversation_response = supabase.table('conversations') \
+                .insert({'user_id': user_id, 'title': f"Public Chat with User {user_id}"}) \
+                .select() \
+                .single() \
+                .execute()
+            if not conversation_response.data:
+                raise HTTPException(status_code=500, detail="Failed to create a new conversation")
+            conversation_id = conversation_response.data['id']
+            print('New conversation ID:', conversation_id)
 
-        if not conversation_response.data:
-            raise HTTPException(
-                status_code=403, 
-                detail="Conversation not found or not public"
-            )
+        # Insert user message
+        user_message = {
+            'content': content,
+            'conversation_id': conversation_id,
+            'is_bot': False,
+            'created_at': datetime.utcnow().isoformat()
+        }
+        supabase.table('messages').insert(user_message).execute()
 
         # Get the target user's documents
         user_documents = fetch_and_concatenate_user_documents(user_id)
@@ -451,18 +462,17 @@ async def process_message_public(request: Request):
         bot_message = {
             'content': bot_response_content,
             'conversation_id': conversation_id,
-            'is_bot': True
+            'is_bot': True,
+            'created_at': datetime.utcnow().isoformat()
         }
-
-        print(f"Inserting bot message into database: {bot_message}")
-        bot_response = supabase.table('messages').insert(bot_message).execute()
-        print(f"Database response: {bot_response}")
+        supabase.table('messages').insert(bot_message).execute()
 
         return {
             "reply": {
                 "content": bot_response_content,
                 "conversation_id": conversation_id,
-                "is_bot": True
+                "is_bot": True,
+                "created_at": bot_message['created_at']
             }
         }
 
