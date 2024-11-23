@@ -9,6 +9,9 @@ function Chat({ hasUserContent, username }) {
   const [selectedConversationId, setSelectedConversationId] = useState(null);
   const [isSending, setIsSending] = useState(false);
   const [userId, setUserId] = useState(null);
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [newTitle, setNewTitle] = useState('');
+  const [isLoadingReply, setIsLoadingReply] = useState(false);
   const backendUrl = useBackend();
 
   useEffect(() => {
@@ -63,6 +66,7 @@ function Chat({ hasUserContent, username }) {
         .single();
       if (conversationError) throw conversationError;
       
+      setConversations((prevConversations) => [...prevConversations, conversationData]);
       setSelectedConversationId(conversationData.id);
       setMessages([]);
       console.log('New conversation created with ID:', conversationData.id);
@@ -87,6 +91,8 @@ function Chat({ hasUserContent, username }) {
           .select()
           .single();
         if (conversationError) throw conversationError;
+  
+        setConversations((prevConversations) => [...prevConversations, conversationData]);
         setSelectedConversationId(conversationData.id);
         console.log('New conversation ID:', conversationData.id);
       }
@@ -103,6 +109,7 @@ function Chat({ hasUserContent, username }) {
       setMessage('');
   
       console.log('Sending message to backend API for processing...');
+      setIsLoadingReply(true);
       const response = await fetch(`${backendUrl}/api/process-message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -116,7 +123,7 @@ function Chat({ hasUserContent, username }) {
       const result = await response.json();
       if (response.ok) {
         console.log('Received reply from backend:', result.reply);
-        setMessages((prevMessages) => [...prevMessages, result.reply]);
+        setMessages((prevMessages) => [...prevMessages, { ...result.reply, created_at: new Date().toISOString() }]);
       } else {
         console.error('Error processing message:', result.detail);
       }
@@ -124,6 +131,48 @@ function Chat({ hasUserContent, username }) {
       console.error('Error sending message:', error);
     } finally {
       setIsSending(false);
+      setIsLoadingReply(false);
+    }
+  };
+
+  const handleDeleteConversation = async (conversationId) => {
+    try {
+      const { error } = await supabase
+        .from('conversations')
+        .delete()
+        .eq('id', conversationId);
+      if (error) throw error;
+
+      setConversations((prevConversations) => prevConversations.filter(c => c.id !== conversationId));
+
+      if (selectedConversationId === conversationId) {
+        const remainingConversations = conversations.filter(c => c.id !== conversationId);
+        if (remainingConversations.length > 0) {
+          setSelectedConversationId(remainingConversations[0].id);
+        } else {
+          setSelectedConversationId(null);
+          setMessages([]);
+        }
+      }
+
+      console.log('Conversation deleted:', conversationId);
+    } catch (error) {
+      console.error('Error deleting conversation:', error.message);
+    }
+  };
+
+  const handleRenameConversation = async (conversationId) => {
+    try {
+      const { error } = await supabase
+        .from('conversations')
+        .update({ title: newTitle })
+        .eq('id', conversationId);
+      if (error) throw error;
+      setConversations(conversations.map(c => c.id === conversationId ? { ...c, title: newTitle } : c));
+      setIsRenaming(false);
+      console.log('Conversation renamed:', conversationId);
+    } catch (error) {
+      console.error('Error renaming conversation:', error.message);
     }
   };
 
@@ -165,6 +214,39 @@ function Chat({ hasUserContent, username }) {
                   <div className="text-xs text-gray-400 mt-1">
                     {new Date(conversation.created_at).toLocaleDateString()}
                   </div>
+                  <div className="flex justify-end space-x-2 mt-2">
+                    <button
+                      onClick={() => handleDeleteConversation(conversation.id)}
+                      className="text-red-500 text-xs hover:underline"
+                    >
+                      Delete
+                    </button>
+                    <button
+                      onClick={() => {
+                        setIsRenaming(true);
+                        setNewTitle(conversation.title || '');
+                      }}
+                      className="text-blue-500 text-xs hover:underline"
+                    >
+                      Rename
+                    </button>
+                  </div>
+                  {isRenaming && selectedConversationId === conversation.id && (
+                    <div className="mt-2">
+                      <input
+                        type="text"
+                        value={newTitle}
+                        onChange={(e) => setNewTitle(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            handleRenameConversation(conversation.id);
+                          }
+                        }}
+                        className="w-full bg-gray-700 text-white p-2 rounded-md"
+                        placeholder="New title"
+                      />
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
@@ -213,6 +295,11 @@ function Chat({ hasUserContent, username }) {
                   </div>
                 </div>
               ))}
+              {isLoadingReply && (
+                <div className="flex justify-center">
+                  <div className="text-white">Loading...</div>
+                </div>
+              )}
             </div>
           </div>
 
