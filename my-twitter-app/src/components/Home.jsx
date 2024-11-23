@@ -154,9 +154,9 @@ function Home() {
   );
 
   return (
-    <div className="min-h-screen bg-black-primary text-white">
+    <div className="h-screen bg-black-primary text-white">
       {/* Logout button in top right */}
-      <div className="absolute top-4 right-4">
+      <div className="absolute top-4 right-4 z-10">
         <button
           onClick={handleLogout}
           disabled={isLoggingOut}
@@ -166,40 +166,36 @@ function Home() {
         </button>
       </div>
 
-      {/* Main content with proper padding and max-width */}
-      <div className="container mx-auto px-8 pr-24 py-8 h-screen max-w-[1800px]">
-        <div className="grid grid-cols-[1.2fr_1fr] gap-8 h-[calc(100vh-4rem)]">
+      {/* Main content with fixed height */}
+      <div className="h-screen pt-4 px-4 pb-4">
+        <div className="h-[calc(100%-1rem)] max-w-[90%] mx-auto grid grid-cols-[1fr_1fr] gap-4">
           {/* Left side - Message Input */}
           {authStatus.twitter && (
-            <div className="h-full">
-              <div className="bg-black-secondary p-8 rounded-lg shadow-lg h-full">
-                <div className="flex flex-col h-full">
-                  <h2 className="text-2xl font-bold mb-4">Your Message</h2>
-                  <div className="flex-1 flex flex-col">
-                    <textarea
-                      placeholder="Type your message or paste a URL..."
-                      className="flex-1 p-4 bg-black-primary text-white rounded-lg border border-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none mb-4"
-                    />
-                    <div className="flex justify-end space-x-3">
-                      <button className="px-6 py-3 bg-gray-700 text-white rounded-md hover:bg-gray-600 transition duration-300">
-                        Clear
-                      </button>
-                      <button className="px-6 py-3 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition duration-300">
-                        Send
-                      </button>
-                    </div>
-                  </div>
+            <div className="h-full bg-black-secondary rounded-lg shadow-lg p-4 flex flex-col">
+              <h2 className="text-2xl font-bold mb-4">Your Message</h2>
+              <div className="flex-1 flex flex-col min-h-0">
+                <textarea
+                  placeholder="Type your message or paste a URL..."
+                  className="flex-1 p-4 bg-black-primary text-white rounded-lg border border-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none mb-4"
+                />
+                <div className="flex justify-end space-x-3">
+                  <button className="px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-600 transition duration-300">
+                    Clear
+                  </button>
+                  <button className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition duration-300">
+                    Send
+                  </button>
                 </div>
               </div>
             </div>
           )}
 
           {/* Right side - Split into Auth (top) and Chat (bottom) */}
-          <div className="flex flex-col space-y-6 h-full">
+          <div className="h-full flex flex-col gap-4">
             {/* Auth Content - Top */}
-            <div className="bg-black-secondary p-6 rounded-lg shadow-lg">
+            <div className="bg-black-secondary rounded-lg shadow-lg p-4">
               <div className="text-center mb-4">
-                <h1 className="text-3xl font-bold text-white">
+                <h1 className="text-2xl font-bold text-white">
                   {authStatus.twitter ? 'Mirror' : 'Hello'}, {username}
                 </h1>
                 <p className="text-sm text-gray-400 mt-2">
@@ -248,12 +244,10 @@ function Home() {
 
             {/* Chat Window - Bottom */}
             {authStatus.twitter && (
-              <div className="flex-1 bg-black-secondary p-6 rounded-lg shadow-lg min-h-0">
-                <div className="flex flex-col h-full">
-                  <h2 className="text-2xl font-bold mb-4">Mirror Chat</h2>
-                  <div className="flex-1 overflow-y-auto space-y-4 bg-black-primary/50 p-4 rounded-lg min-h-0">
-                    <Chat />
-                  </div>
+              <div className="flex-1 bg-black-secondary rounded-lg shadow-lg p-4 min-h-0 flex flex-col">
+                <h2 className="text-2xl font-bold mb-4">Mirror Chat</h2>
+                <div className="flex-1 min-h-0">
+                  <Chat />
                 </div>
               </div>
             )}

@@ -141,50 +141,54 @@ function Chat() {
   };
 
   return (
-    <div className="flex justify-center items-center w-full min-h-screen bg-gray-900 p-4">
-      <div className="flex w-full max-w-4xl gap-4">
+    <div className="h-full flex flex-col bg-gray-900 rounded-lg overflow-hidden">
+      <div className="flex h-full">
         {/* Sidebar for conversations */}
-        <div className="w-60 bg-gray-900 p-4 rounded-lg shrink-0">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-white text-lg font-semibold">Conversations</h3>
-            <button
-              onClick={handleNewChat}
-              className="px-3 py-1 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors"
-            >
-              New Chat
-            </button>
+        <div className="w-60 bg-gray-900 p-4 border-r border-gray-800 flex flex-col">
+          <h3 className="text-white text-lg font-semibold mb-4">Conversations</h3>
+          
+          {/* Conversation list with flex-1 to push button to bottom */}
+          <div className="flex-1 overflow-y-auto mb-4">
+            <ul className="space-y-2">
+              {conversations.map((conversation) => (
+                <li
+                  key={conversation.id}
+                  className={`p-3 rounded-md cursor-pointer transition-colors ${
+                    conversation.id === selectedConversationId 
+                      ? 'bg-blue-600 text-white' 
+                      : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
+                  }`}
+                  onClick={() => handleSelectConversation(conversation.id)}
+                >
+                  <div className="truncate">
+                    {conversation.title || `Conversation ${conversation.id}`}
+                  </div>
+                  <div className="text-xs text-gray-400 mt-1">
+                    {new Date(conversation.created_at).toLocaleDateString()}
+                  </div>
+                </li>
+              ))}
+            </ul>
           </div>
-          <ul className="space-y-2">
-            {conversations.map((conversation) => (
-              <li
-                key={conversation.id}
-                className={`p-3 rounded-md cursor-pointer transition-colors ${
-                  conversation.id === selectedConversationId 
-                    ? 'bg-blue-600 text-white' 
-                    : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
-                }`}
-                onClick={() => handleSelectConversation(conversation.id)}
-              >
-                <div className="truncate">
-                  {conversation.title || `Conversation ${conversation.id}`}
-                </div>
-                <div className="text-xs text-gray-400 mt-1">
-                  {new Date(conversation.created_at).toLocaleDateString()}
-                </div>
-              </li>
-            ))}
-          </ul>
+
+          {/* New Chat button at bottom */}
+          <button
+            onClick={handleNewChat}
+            className="w-full py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
+          >
+            New Chat
+          </button>
         </div>
 
         {/* Chat window */}
-        <div className="flex-1 bg-black-secondary rounded-lg shadow-lg p-6 min-h-[600px] flex flex-col">
+        <div className="flex-1 flex flex-col p-4">
           <div className="text-center mb-4">
             <h2 className="text-2xl font-bold text-white">Your Mirror</h2>
             <p className="text-gray-400 text-sm mt-1">Your digital conscience</p>
           </div>
 
-          <div className="flex-1 bg-gray-800 rounded-lg p-4 mb-4">
-            <div className="overflow-y-auto h-full space-y-4 pr-2">
+          <div className="flex-1 bg-gray-800 rounded-lg p-4 mb-4 overflow-hidden">
+            <div className="h-full overflow-y-auto space-y-4 pr-2">
               {messages.map((msg, index) => (
                 <div 
                   key={index} 
