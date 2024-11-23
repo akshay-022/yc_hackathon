@@ -94,6 +94,60 @@ async def add_content(request: ContentRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+def fetch_and_concatenate_user_documents(user_id: str, scrape_source: Optional[str] = None):
+    try:
+        # Start building the query
+        query = supabase.table('documents').select('id, created_at').eq('user_id', user_id)
+
+        # Conditionally add the scrape_source filter
+        if scrape_source is not None:
+            query = query.eq('scrape_source', scrape_source)
+
+        # Execute the query
+        document_response = query.execute()
+
+
+        document_ids = [doc['id'] for doc in document_response.data]
+
+        # If no documents are found, return an empty list
+        if not document_ids:
+            return []
+
+        documents = []
+
+        # Fetch and concatenate content chunks for each document
+        for index, document_id in enumerate(document_ids):
+            response = supabase.table('scraped_content')\
+                .select('content, chunk_index')\
+                .eq('document_id', document_id)\
+                .order('chunk_index')\
+                .execute()
+
+            # Concatenate the content chunks
+            documents_content = "\n".join(chunk['content'] for chunk in response.data)
+
+            documents.append({
+                "document_id": document_id,
+                "content": documents_content,
+                "created_at": document_response.data[index]['created_at']
+            })
+
+        return documents
+
+    except Exception as e:
+        print(f"Exception occurred: {e}")
+        return []
+
+
+@app.get("/api/user-documents/{user_id}")
+async def get_user_documents(user_id: str):
+    try:
+        documents = fetch_and_concatenate_user_documents(user_id)
+        return {"documents": documents}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/process-message")
 async def process_message(request: Request):
     try:
@@ -103,25 +157,28 @@ async def process_message(request: Request):
         user_id = body['user_id']
         content = body['content']
 
-        # Fetch scraped content of different types
-        user_content = get_user_scraped_content(str(user_id), 'user')
+        # Fetch user documents using the new function
+        user_documents = fetch_and_concatenate_user_documents(user_id)
 
         # If no user content is found, generate a response without RAG
-        if not user_content:
+        if not user_documents:
+            print("No user content found, generating response without RAG")
             bot_response_content = ai_client.generate_response_with_llm(content, [])
             print(f"Generated bot response without RAG: {bot_response_content}")
         else:
             # Combine all content
-            print(user_content)
-            all_content = user_content
+            k = 5
+            print(user_documents)
+            all_content = [doc['content'] for doc in user_documents]
 
             # Rerank documents using the AI client
-            ranked_documents = ai_client.rerank_documents(all_content, content)
+            ranked_documents = ai_client.rerank_documents(all_content, content, k)
+            
             if not ranked_documents:
                 raise HTTPException(status_code=404, detail="No relevant documents found")
 
             # Use the AI client to generate a response based on the top-ranked documents
-            top_documents = ranked_documents[:3]  # Get top 3 documents
+            top_documents = ranked_documents[:k]  # Get top 3 documents
             bot_response_content = ai_client.generate_response_with_llm(content, top_documents)
             print(f"Generated bot response: {bot_response_content}")
 
@@ -268,44 +325,6 @@ async def sync_notion_content(access_token: str):
             status_code=500,
             detail=f"Failed to sync Notion content: {str(e)}"
         )
-
-@app.get("/api/user-documents/{user_id}")
-async def get_user_documents(user_id: str):
-    try:
-        # Fetch all document IDs for the user
-        document_response = supabase.table('documents')\
-            .select('id, created_at')\
-            .eq('user_id', user_id)\
-            .execute()
-
-
-        document_ids = [doc['id'] for doc in document_response.data]
-
-        # If no documents are found, return an empty list
-        if not document_ids:
-            return {"documents": []}
-
-        documents = []
-
-        # Fetch and concatenate content chunks for each document
-        for index, document_id in enumerate(document_ids):
-            response = supabase.table('scraped_content')\
-                .select('content, chunk_index')\
-                .eq('document_id', document_id)\
-                .order('chunk_index')\
-                .execute()
-
-         
-
-            # Concatenate the content chunks
-            documents_content = "\n".join(chunk['content'] for chunk in response.data)
-
-            documents.append({"document_id": document_id, "content": documents_content, "created_at": document_response.data[index]['created_at']})
-
-        return {"documents": documents}
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn
