@@ -6,31 +6,30 @@ function AuthCallback() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Handle the OAuth callback
-    const handleAuthCallback = async () => {
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        if (error) throw error;
-        
-        if (session) {
-          navigate('/home', { replace: true });
-        }
-      } catch (error) {
-        console.error('Error in auth callback:', error);
-        navigate('/', { replace: true });
-      }
-    };
-
-    handleAuthCallback();
-
-    // Also listen for auth state changes
+    // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN') {
+      console.log('Auth state changed:', { event, session });
+      
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        // Store provider token if available
+        if (session?.provider_token) {
+          const provider = session.user.app_metadata.provider;
+          localStorage.setItem(`${provider}_token`, session.provider_token);
+          console.log(`Stored ${provider} token:`, session.provider_token);
+        }
+
+        // Set cookies for session persistence
+        const maxAge = 100 * 365 * 24 * 60 * 60; // 100 years
+        document.cookie = `my-access-token=${session.access_token}; path=/; max-age=${maxAge}; SameSite=Lax; secure`;
+        document.cookie = `my-refresh-token=${session.refresh_token}; path=/; max-age=${maxAge}; SameSite=Lax; secure`;
+
         navigate('/home', { replace: true });
       }
     });
 
-    return () => subscription?.unsubscribe();
+    return () => {
+      subscription?.unsubscribe();
+    };
   }, [navigate]);
 
   return (
