@@ -7,7 +7,7 @@ import os
 from dotenv import load_dotenv
 from typing import Optional
 from uuid import UUID
-from agent import generate_embeddings
+from agent import AIClient
 
 # Load environment variables from .env file
 load_dotenv()
@@ -38,6 +38,9 @@ if not supabase_url or not supabase_key:
 
 supabase: Client = create_client(supabase_url, supabase_key)
 
+# Initialize the AI client
+ai_client = AIClient()
+
 @app.get("/")
 async def root():
     return supabase.table('conversations').select('*').execute()
@@ -54,24 +57,29 @@ class ContentRequest(BaseModel):
 @app.post("/api/add-content")
 async def add_content(request: ContentRequest):
     try:
-        # Generate embeddings using the agent
-        embedding = generate_embeddings(request.content)
-        print(len(embedding))
-        if embedding is None:
+        print("Raw request body:", request)
+        # Generate embeddings using the AI client
+        chunks, embeddings = ai_client.generate_embeddings(request.content)
+        if chunks is None or embeddings is None:
             raise HTTPException(status_code=500, detail="Failed to generate embeddings")
 
-        # Insert content and embeddings into the scraped_content table
-        response = supabase.table('scraped_content').insert({
-            'user_id': request.user_id,
-            'content': request.content,
-            'embeddings': embedding,
-            'scrape_source': 'user'
-        }).execute()
+        # Insert each chunk and its corresponding embedding into the scraped_content table
+        records = []
+        for chunk, embedding in zip(chunks, embeddings):
+            records.append({
+                'user_id': request.user_id,
+                'content': chunk,
+                'embeddings': embedding,
+                'scrape_source': 'user'
+            })
+
+        # Batch insert records into the database
+        response = supabase.table('scraped_content').insert(records).execute()
 
         if response.error:
             raise HTTPException(status_code=500, detail=str(response.error))
 
-        return {"message": "Content added successfully"}
+        return {"message": "Content added successfully", "chunks_added": len(records)}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -84,8 +92,20 @@ async def process_message(request: Request):
         message_request = MessageRequest(**body)
         print(f"Parsed request: {message_request}")
 
-        # Generate bot response (placeholder - replace with your AI logic)
-        bot_response_content = f"I received your message: {message_request.content}"
+        # Fetch scraped content of different types
+        user_content = get_user_scraped_content(str(message_request.user_id), 'user')
+        notion_content = get_source_content('notion')
+        twitter_content = get_source_content('twitter')
+
+        # Combine all content
+        all_content = user_content + notion_content + twitter_content
+
+        # Rerank documents using the AI client
+        ranked_documents = ai_client.rerank_documents(all_content, message_request.content)
+
+        # Use the AI client to generate a response based on the top-ranked documents
+        top_documents = ranked_documents[:3]  # Get top 3 documents
+        bot_response_content = ai_client.generate_response_with_llm(message_request.content, top_documents)
         print(f"Generated bot response: {bot_response_content}")
 
         # Insert the bot's response into the messages table
@@ -124,27 +144,16 @@ def get_all_scraped_content():
         return None
 
 # Filter by user_id
-def get_user_scraped_content(user_id: str):
+def get_user_scraped_content(user_id: str, source: str):
     try:
         response = supabase.table('scraped_content')\
             .select("*")\
             .eq('user_id', user_id)\
-            .execute()
-        return response.data
-    except Exception as e:
-        print(f"Error fetching user content: {e}")
-        return None
-
-# Filter by source
-def get_source_content(source: str):
-    try:
-        response = supabase.table('scraped_content')\
-            .select("*")\
             .eq('scrape_source', source)\
             .execute()
         return response.data
     except Exception as e:
-        print(f"Error fetching source content: {e}")
+        print(f"Error fetching user content: {e}")
         return None
 
 # Insert single record

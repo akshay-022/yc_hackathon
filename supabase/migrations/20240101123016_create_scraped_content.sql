@@ -7,7 +7,7 @@ create table public.scraped_content (
     user_id uuid not null references auth.users (id) on delete cascade,
     scrape_source text not null check (scrape_source in ('twitter', 'notion', 'youtube')),
     content text not null,
-    embeddings vector(1536),
+    embeddings vector(512),
     created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 

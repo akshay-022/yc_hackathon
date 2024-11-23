@@ -15,7 +15,7 @@ function AddContent() {
       const response = await fetch('http://localhost:8000/api/add-content', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId, content }),
+        body: JSON.stringify({ user_id: userId, content: content }),
       });
 
       const result = await response.json();
