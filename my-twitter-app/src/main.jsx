@@ -6,6 +6,9 @@ import AuthCallback from './components/Auth/callback';
 import './index.css';
 import App from './App';
 import Home from './components/Home';
+import { BackendProvider } from './BackendContext';
+
+const BACKEND_URL = 'http://localhost:8000'; // Set your backend URL here
 
 const router = createBrowserRouter([
   {
@@ -25,7 +28,9 @@ const router = createBrowserRouter([
 // Create root and render
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <RouterProvider router={router} />
+    <BackendProvider backendUrl={BACKEND_URL}>
+      <RouterProvider router={router} />
+    </BackendProvider>
   </React.StrictMode>
 );
 

@@ -6,7 +6,7 @@ from supabase import create_client, Client
 import os
 from dotenv import load_dotenv
 from typing import Optional
-from uuid import UUID
+from uuid import UUID, uuid4
 from agent import AIClient
 
 # Load environment variables from .env file
@@ -43,7 +43,14 @@ ai_client = AIClient()
 
 @app.get("/")
 async def root():
-    return supabase.table('conversations').select('*').execute()
+    tables = {
+        'conversations': supabase.table('conversations').select('*').execute(),
+        'documents': supabase.table('documents').select('*').execute(),
+        'messages': supabase.table('messages').select('*').execute(),
+        'profiles': supabase.table('profiles').select('*').execute(),
+        'scraped_content': supabase.table('scraped_content').select('*').execute()
+    }
+    return tables
 
 class MessageRequest(BaseModel):
     conversation_id: int
@@ -58,28 +65,35 @@ class ContentRequest(BaseModel):
 async def add_content(request: ContentRequest):
     try:
         print("Raw request body:", request)
+        # Generate a unique document_id for the entire document
+        document_id = str(uuid4())
+
+        # Insert a new document entry
+        document_response = supabase.table('documents').insert({
+            'id': document_id,
+            'user_id': request.user_id,
+            'scrape_source': 'user'
+        }).execute()
+
         # Generate embeddings using the AI client
         chunks, embeddings = ai_client.generate_embeddings(request.content)
-        if chunks is None or embeddings is None:
+        if not chunks or not embeddings:
             raise HTTPException(status_code=500, detail="Failed to generate embeddings")
 
         # Insert each chunk and its corresponding embedding into the scraped_content table
         records = []
-        for chunk, embedding in zip(chunks, embeddings):
+        for index, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
             records.append({
-                'user_id': request.user_id,
+                'document_id': document_id,  # Use the same document_id for all chunks
                 'content': chunk,
                 'embeddings': embedding,
-                'scrape_source': 'user'
+                'chunk_index': index
             })
 
         # Batch insert records into the database
         response = supabase.table('scraped_content').insert(records).execute()
 
-        if response.error:
-            raise HTTPException(status_code=500, detail=str(response.error))
-
-        return {"message": "Content added successfully", "chunks_added": len(records)}
+        return {"message": "Content added successfully", "chunks_added": len(records), "document_id": document_id}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -94,19 +108,24 @@ async def process_message(request: Request):
 
         # Fetch scraped content of different types
         user_content = get_user_scraped_content(str(message_request.user_id), 'user')
-        notion_content = get_source_content('notion')
-        twitter_content = get_source_content('twitter')
 
-        # Combine all content
-        all_content = user_content + notion_content + twitter_content
+        # If no user content is found, generate a response without RAG
+        if not user_content:
+            bot_response_content = ai_client.generate_response_with_llm(message_request.content, [])
+            print(f"Generated bot response without RAG: {bot_response_content}")
+        else:
+            # Combine all content
+            all_content = user_content
 
-        # Rerank documents using the AI client
-        ranked_documents = ai_client.rerank_documents(all_content, message_request.content)
+            # Rerank documents using the AI client
+            ranked_documents = ai_client.rerank_documents(all_content, message_request.content)
+            if not ranked_documents:
+                raise HTTPException(status_code=404, detail="No relevant documents found")
 
-        # Use the AI client to generate a response based on the top-ranked documents
-        top_documents = ranked_documents[:3]  # Get top 3 documents
-        bot_response_content = ai_client.generate_response_with_llm(message_request.content, top_documents)
-        print(f"Generated bot response: {bot_response_content}")
+            # Use the AI client to generate a response based on the top-ranked documents
+            top_documents = ranked_documents[:3]  # Get top 3 documents
+            bot_response_content = ai_client.generate_response_with_llm(message_request.content, top_documents)
+            print(f"Generated bot response: {bot_response_content}")
 
         # Insert the bot's response into the messages table
         bot_message = {
@@ -118,9 +137,6 @@ async def process_message(request: Request):
         print(f"Inserting bot message into database: {bot_message}")
         bot_response = supabase.table('messages').insert(bot_message).execute()
         print(f"Database response: {bot_response}")
-
-        if bot_response.status_code != 201:
-            raise HTTPException(status_code=500, detail="Failed to insert bot message")
 
         return {
             "reply": {
@@ -138,10 +154,10 @@ async def process_message(request: Request):
 def get_all_scraped_content():
     try:
         response = supabase.table('scraped_content').select("*").execute()
-        return response.data
+        return response.data or []
     except Exception as e:
         print(f"Error fetching scraped content: {e}")
-        return None
+        return []
 
 # Filter by user_id
 def get_user_scraped_content(user_id: str, source: str):
@@ -151,10 +167,10 @@ def get_user_scraped_content(user_id: str, source: str):
             .eq('user_id', user_id)\
             .eq('scrape_source', source)\
             .execute()
-        return response.data
+        return response.data or []
     except Exception as e:
         print(f"Error fetching user content: {e}")
-        return None
+        return []
 
 # Insert single record
 def insert_scraped_content(user_id: str, source: str, content: str, embeddings: list):
@@ -254,6 +270,44 @@ async def sync_notion_content(access_token: str):
             status_code=500,
             detail=f"Failed to sync Notion content: {str(e)}"
         )
+
+@app.get("/api/user-documents/{user_id}")
+async def get_user_documents(user_id: str):
+    try:
+        # Fetch all document IDs for the user
+        document_response = supabase.table('documents')\
+            .select('id, created_at')\
+            .eq('user_id', user_id)\
+            .execute()
+
+
+        document_ids = [doc['id'] for doc in document_response.data]
+
+        # If no documents are found, return an empty list
+        if not document_ids:
+            return {"documents": []}
+
+        documents = []
+
+        # Fetch and concatenate content chunks for each document
+        for index, document_id in enumerate(document_ids):
+            response = supabase.table('scraped_content')\
+                .select('content, chunk_index')\
+                .eq('document_id', document_id)\
+                .order('chunk_index')\
+                .execute()
+
+         
+
+            # Concatenate the content chunks
+            documents_content = "\n".join(chunk['content'] for chunk in response.data)
+
+            documents.append({"document_id": document_id, "content": documents_content, "created_at": document_response.data[index]['created_at']})
+
+        return {"documents": documents}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn

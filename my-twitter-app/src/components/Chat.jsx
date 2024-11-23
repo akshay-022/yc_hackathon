@@ -1,16 +1,15 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
+import { useBackend } from '../BackendContext';
 
-// variable for backend URL
-const backendUrl = 'http://localhost:8000';
-
-function Chat() {
+function Chat({ hasUserContent, username }) {
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState([]);
   const [conversations, setConversations] = useState([]);
   const [selectedConversationId, setSelectedConversationId] = useState(null);
   const [isSending, setIsSending] = useState(false);
   const [userId, setUserId] = useState(null);
+  const backendUrl = useBackend();
 
   useEffect(() => {
     const fetchUserId = async () => {
@@ -186,6 +185,12 @@ function Chat() {
             <h2 className="text-2xl font-bold text-white">Your Mirror</h2>
             <p className="text-gray-400 text-sm mt-1">Your digital conscience</p>
           </div>
+
+          {!hasUserContent && (
+            <div className="bg-gray-700 text-white p-2 rounded-md mb-4">
+              I do not have enough information about {username} to mirror them.
+            </div>
+          )}
 
           <div className="flex-1 bg-gray-800 rounded-lg p-4 mb-4 overflow-hidden">
             <div className="h-full overflow-y-auto space-y-4 pr-2">
