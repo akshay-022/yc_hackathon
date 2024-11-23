@@ -1,43 +1,44 @@
-import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import SignIn from './components/SignIn';
 import SignUp from './components/SignUp';
-import Home from './components/Home';
-import { AuthCallback } from './pages/auth/callback';
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(false);
   const navigate = useNavigate();
 
   const handleAuthSuccess = () => {
-    setIsAuthenticated(true);
     navigate('/home');
   };
 
+  const toggleAuthMode = () => {
+    setIsSignUp((prev) => !prev);
+  };
+
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/auth/callback" element={<AuthCallback />} />
-        <Route path="/" element={
-          <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
-            <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
-              <div className="text-center mb-6">
-                <h1 className="text-3xl font-bold text-gray-800">Mirror</h1>
-                <p className="text-gray-600">Your real online self.</p>
-              </div>
-              
-              <div className="space-y-4">
-                <h2 className="text-xl font-semibold text-gray-700">Welcome Back</h2>
-                <p className="text-gray-500">Sign in or sign up to continue</p>
-                <SignIn onAuthSuccess={handleAuthSuccess} />
-                <SignUp onAuthSuccess={handleAuthSuccess} />
-              </div>
-            </div>
-          </div>
-        } />
-        <Route path="/home" element={<Home />} />
-      </Routes>
-    </BrowserRouter>
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500">
+      <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-gray-900">Mirror</h1>
+          <p className="text-base text-gray-600 mt-2">Your real online self.</p>
+        </div>
+
+        {isSignUp ? (
+          <SignUp onAuthSuccess={handleAuthSuccess} />
+        ) : (
+          <SignIn onAuthSuccess={handleAuthSuccess} onSwitchToSignUp={toggleAuthMode} />
+        )}
+
+        <div className="mt-6 text-center">
+          <button
+            onClick={toggleAuthMode}
+            className="text-indigo-600 hover:text-indigo-500 font-medium"
+          >
+            {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
