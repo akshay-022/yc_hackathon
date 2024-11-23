@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import supabase from '../supabaseClient';
+import { supabase } from '../supabaseClient';
 
 function SignIn({ onAuthSuccess }) {
   const [email, setEmail] = useState('');
