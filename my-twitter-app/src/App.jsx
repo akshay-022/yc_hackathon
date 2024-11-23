@@ -20,11 +20,11 @@ function App() {
       <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-gray-900">Mirror</h1>
-          <p className="text-base text-gray-600 mt-2">Your real online self.</p>
+          <p className="text-base text-gray-600 mt-2">Your digital conscience.</p>
         </div>
 
         {isSignUp ? (
-          <SignUp onAuthSuccess={handleAuthSuccess} />
+          <SignUp onAuthSuccess={handleAuthSuccess} onSignUpSuccess={handleAuthSuccess} />
         ) : (
           <SignIn onAuthSuccess={handleAuthSuccess} onSwitchToSignUp={toggleAuthMode} />
         )}

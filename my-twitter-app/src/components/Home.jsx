@@ -1,14 +1,69 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faTwitter } from '@fortawesome/free-brands-svg-icons';
 import { faN } from '@fortawesome/free-solid-svg-icons';
+import Chat from './Chat';
 
 function Home() {
   const [username, setUsername] = useState('User');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    // Check if user is authenticated and fetch profile
+    const fetchUser = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (!user) {
+          navigate('/');
+          return;
+        }
+
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('username')
+          .eq('id', user.id)
+          .single();
+
+        if (profile?.username) {
+          setUsername(profile.username);
+        }
+      } catch (error) {
+        console.error('Error fetching user:', error);
+        navigate('/');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchUser();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' || !session) {
+        navigate('/');
+      }
+    });
+
+    return () => {
+      subscription?.unsubscribe();
+    };
+  }, [navigate]);
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-black-primary text-white flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-xl">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   const handleLogout = async () => {
     try {
@@ -74,6 +129,11 @@ function Home() {
               Authenticate with Notion
             </button>
           </div>
+        </div>
+
+        {/* Chat component below authentication buttons */}
+        <div className="mt-8 w-full max-w-md">
+          <Chat />
         </div>
       </div>
     </div>

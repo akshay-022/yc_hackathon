@@ -13,28 +13,28 @@ function SignUp({ onAuthSuccess, onSwitchToSignIn, onSignUpSuccess }) {
       setIsLoading(true);
       setAuthError(null);
 
-      // First create the auth user
-      const { data: authData, error: authError } = await supabase.auth.signUp({ 
-        email, 
+      // First create the auth user with username
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email,
         password,
         options: {
           data: {
-            username
-          }
-        }
+            username,
+          },
+        },
       });
-      
+
       if (authError) throw authError;
 
       // Then store the username in a profiles table
       const { error: profileError } = await supabase
         .from('profiles')
         .insert([
-          { 
+          {
             id: authData.user.id,
             username,
-            email 
-          }
+            email,
+          },
         ]);
 
       if (profileError) throw profileError;
@@ -88,7 +88,6 @@ function SignUp({ onAuthSuccess, onSwitchToSignIn, onSignUpSuccess }) {
         Sign Up
       </button>
       {authError && <p className="text-red-500 text-sm text-center">{authError}</p>}
-      
     </div>
   );
 }
