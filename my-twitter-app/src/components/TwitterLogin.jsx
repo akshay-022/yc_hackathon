@@ -1,19 +1,30 @@
 import { supabase } from '../supabaseClient';
+import { useNavigate } from 'react-router-dom'; 
 
 function TwitterLogin() {
+  const navigate = useNavigate();
+
   const handleTwitterLogin = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'twitter',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-        // Optional: Specify which Twitter scopes you need
-        scopes: 'tweet.read users.read',
+        redirectTo: 'https://tznrpdmwzpuispggvpdk.supabase.co/auth/v1/callback',
+        scopes: 'tweet.read users.read'
       }
     });
     
     if (error) {
       console.error('Error logging in with Twitter:', error.message);
+      return;
     }
+
+    // Get session after successful login
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    // Access tokens are in session.provider_token (OAuth provider token)
+    // and session.access_token (Supabase token)
+    console.log('Provider token:', session?.provider_token);
+    console.log('Supabase token:', session?.access_token);
   };
 
   return (
