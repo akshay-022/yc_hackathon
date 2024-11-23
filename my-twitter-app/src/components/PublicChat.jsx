@@ -113,34 +113,15 @@ function PublicChat() {
       setIsSending(true);
       setIsLoadingReply(true);
 
-      // Ensure conversation exists
-      if (!conversationId) {
-        console.log('No conversation ID. Creating a new conversation...');
-        const { data: newConv, error: convError } = await supabase
-          .from('conversations')
-          .insert([{ user_id: userId }])
-          .select()
-          .single();
-        if (convError) throw convError;
-
-        setConversationId(newConv.id);
-        console.log('New conversation ID:', newConv.id);
-      }
-
-      // Insert user message
-      const { data: userMessage, error: messageError } = await supabase
-        .from('messages')
-        .insert([{
-          content: message,
-          conversation_id: conversationId,
-          is_bot: false
-        }])
-        .select()
-        .single();
-
-      if (messageError) throw messageError;
+      // Add the user's message to the chat window
+      const userMessage = {
+        content: message,
+        conversation_id: conversationId,
+        is_bot: false,
+        created_at: new Date().toISOString() // Add a timestamp for consistency
+      };
       setMessages((prevMessages) => [...prevMessages, userMessage]);
-      setMessage('');
+      setMessage(''); // Clear the input box
 
       // Process message with public endpoint
       console.log('Sending message to backend API for processing...');
@@ -160,13 +141,13 @@ function PublicChat() {
       if (response.ok) {
         console.log('Received reply from backend:', responseData);
         setMessages((prevMessages) => [...prevMessages, responseData.reply]);
+        setConversationId(responseData.reply.conversation_id);
       } else {
         const errorData = await response.json();
         throw new Error(errorData.detail || 'Failed to process message');
       }
     } catch (error) {
       console.error('Error sending message:', error);
-      // Optionally show error to user
       alert('Failed to send message. Please try again.');
     } finally {
       setIsSending(false);
