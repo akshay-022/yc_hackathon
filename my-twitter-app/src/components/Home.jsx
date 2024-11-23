@@ -21,6 +21,7 @@ function Home() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [copyStatus, setCopyStatus] = useState('');
   const [publicUrl, setPublicUrl] = useState('');
+  const [showPublicInfo, setShowPublicInfo] = useState(false);
   const navigate = useNavigate();
   const backendUrl = useBackend();
 
@@ -193,15 +194,15 @@ function Home() {
 
   const handleShowPublicLink = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        console.error('No user found');
-        return;
+      if (!showPublicInfo) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          console.error('No user found');
+          return;
+        }
+        setPublicUrl(`${window.location.origin}/chat/${user.id}`);
       }
-      
-      const url = `${window.location.origin}/chat/${user.id}`;
-      setPublicUrl(url);
-      
+      setShowPublicInfo(!showPublicInfo);
     } catch (error) {
       console.error('Error generating public link:', error);
     }
@@ -246,7 +247,11 @@ function Home() {
 
       {/* Main content with fixed height */}
       <div className="h-screen pt-4 px-4 pb-4">
-        <div className="h-[calc(100%-1rem)] max-w-[90%] mx-auto grid grid-cols-[1fr_1fr] gap-4">
+        <div className={`h-[calc(100%-1rem)] max-w-[90%] mx-auto ${
+          !authStatus.twitter 
+            ? 'flex justify-center items-start' 
+            : 'grid grid-cols-[1fr_1fr]'
+        } gap-4`}>
           {/* Left side - Add Content */}
           {authStatus.twitter && (
             <div className="h-full bg-black-secondary rounded-lg shadow-lg p-4 flex flex-col">
@@ -254,8 +259,8 @@ function Home() {
             </div>
           )}
 
-          {/* Right side - Split into Auth (top) and Chat (bottom) */}
-          <div className="h-full flex flex-col gap-4">
+          {/* Right side - Auth box will be centered when not authenticated */}
+          <div className={`h-full flex flex-col gap-4 ${!authStatus.twitter ? 'w-[500px]' : ''}`}>
             {/* Auth Content - Top */}
             <div className="bg-black-secondary rounded-lg shadow-lg p-4">
               <div className="text-center mb-4">
@@ -309,21 +314,63 @@ function Home() {
                 <div className="mt-4 space-y-2">
                   <button 
                     onClick={handleShowPublicLink}
-                    className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition duration-300"
+                    className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition duration-300 flex items-center justify-center gap-2"
                   >
-                    Show Public Chat Link
+                    {showPublicInfo ? 'Hide Public Chat Info' : 'Show Public Chat Info'}
                   </button>
                   
-                  {publicUrl && (
-                    <div className="mt-2 p-2 bg-gray-800 rounded-md">
-                      <p className="text-sm text-gray-400 mb-1">Your public chat link:</p>
-                      <input
-                        type="text"
-                        value={publicUrl}
-                        readOnly
-                        className="w-full bg-gray-900 text-white p-2 rounded border border-gray-700 text-sm font-mono"
-                        onClick={e => e.target.select()}
-                      />
+                  {showPublicInfo && publicUrl && (
+                    <div className="mt-2 p-2 bg-gray-800 rounded-md space-y-2">
+                      <div>
+                        <p className="text-sm text-gray-400 mb-1">Public Chat URL:</p>
+                        <input
+                          type="text"
+                          value={publicUrl}
+                          readOnly
+                          className="w-full bg-gray-900 text-white p-2 rounded border border-gray-700 text-sm font-mono"
+                          onClick={e => e.target.select()}
+                        />
+                      </div>
+
+                      <div>
+                        <p className="text-sm text-gray-400 mb-1">API Endpoint:</p>
+                        <input
+                          type="text"
+                          value={`${backendUrl}/api/process-message-public`}
+                          readOnly
+                          className="w-full bg-gray-900 text-white p-2 rounded border border-gray-700 text-sm font-mono"
+                          onClick={e => e.target.select()}
+                        />
+                      </div>
+
+                      <div>
+                        <p className="text-sm text-gray-400 mb-1">Example Request:</p>
+                        <pre className="w-full bg-gray-900 text-white p-2 rounded border border-gray-700 text-sm font-mono overflow-x-auto whitespace-pre-wrap">
+{`fetch('${backendUrl}/api/process-message-public', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    user_id: "${publicUrl.split('/').pop()}", // Your user ID
+    content: "Your message here"
+  })
+})`}
+                        </pre>
+                      </div>
+
+                      <div>
+                        <p className="text-sm text-gray-400 mb-1">Response Format:</p>
+                        <pre className="w-full bg-gray-900 text-white p-2 rounded border border-gray-700 text-sm font-mono overflow-x-auto whitespace-pre-wrap">
+{`{
+  "reply": {
+    "content": "AI response content",
+    "conversation_id": "CONVERSATION_ID",
+    "is_bot": true
+  }
+}`}
+                        </pre>
+                      </div>
                     </div>
                   )}
                 </div>
