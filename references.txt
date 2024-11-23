@@ -1,1 +1,2 @@
-https://supabase.com/docs/reference/javascript/start - supabase-js
+https://supabase.com/docs/reference/javascript/start - supabase-js 
+https://supabase.com/docs/guides/auth - supabase auth docs
