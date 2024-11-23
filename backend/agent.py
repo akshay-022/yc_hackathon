@@ -46,17 +46,17 @@ class AIClient:
             print(f"Error generating embeddings: {e}")
             return None, None
 
-    def rerank_documents(self, documents: list, query: str) -> list:
+    def rerank_documents(self, documents: list, query: str, limit: int) -> list:
         try:
             # Use the Voyager reranker to rank documents based on the query
             result = self.voyage_client.rerank(
                 query=query,
                 documents=documents,
-                model="voyage-3-lite"
+                model="rerank-2-lite",
+                top_k=limit
             )
             # Sort documents by their scores in descending order
-            ranked_documents = sorted(result.documents, key=lambda x: x.score, reverse=True)
-            return ranked_documents
+            return [object.document for object in list(result.results)]
         except Exception as e:
             print(f"Error reranking documents: {e}")
             return []
@@ -64,9 +64,13 @@ class AIClient:
     def generate_response_with_llm(self, query: str, documents: list) -> str:
         try:
             # Prepare the input for the Anthropic LLM
-            retrieved_doc = " ".join([doc['content'] for doc in documents])
-            prompt = f"Based on the information: '{retrieved_doc}', generate a response for {query}"
-
+            retrieved_doc = "\n".join(documents)
+            prompt = f"""
+                Based on the information: '{retrieved_doc}', generate a response for {query}. 
+                Generate only the reply, no other text.
+                For example, if the query is "What do you like?", the reply should be "I like apples."
+            """
+            print(f"Prompt: {prompt}")
             # Use the Anthropic LLM to generate a response
             message = self.anthropic_client.messages.create(
                 model="claude-3-5-sonnet-20240620",
