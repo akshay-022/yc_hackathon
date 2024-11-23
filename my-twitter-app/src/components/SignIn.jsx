@@ -46,16 +46,15 @@ function SignIn({ onAuthSuccess, onSwitchToSignUp }) {
   };
 
   return (
-    <div className="min-h-screen bg-black-primary text-white flex items-center justify-center">
-      <div className="max-w-md w-full p-6 bg-black-secondary rounded-lg shadow-lg">
+      <div className="max-w-md w-full p-6 bg-black-secondary rounded-lg">
+        
+        
+        <h1 className="text-2xl font-bold text-center mb-6 text-white">Login to Mirror</h1>
         {message && (
           <div className="mb-4 p-3 bg-blue-500/20 border border-blue-500/30 rounded text-blue-200">
             {message}
           </div>
         )}
-        
-        <h1 className="text-2xl font-bold text-center mb-6">Login to Mirror</h1>
-        
         <div className="space-y-4">
           {/* OAuth Buttons */}
           <button 
@@ -105,7 +104,6 @@ function SignIn({ onAuthSuccess, onSwitchToSignUp }) {
           )}
         </div>
       </div>
-    </div>
   );
 }
 
