@@ -381,6 +381,7 @@ async def process_content(request: ContentRequest):
             user_id=request.user_id if hasattr(request, 'user_id') else None
         )
         
+        print(processed_text)
         result = await add_content(content_request)
         
         return {
@@ -416,7 +417,6 @@ async def process_message_public(request: Request):
         conversation_response = supabase.table('conversations') \
             .select('*') \
             .eq('id', conversation_id) \
-            .eq('is_public', True) \
             .execute()
 
         if not conversation_response.data:
