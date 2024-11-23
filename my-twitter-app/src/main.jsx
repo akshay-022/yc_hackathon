@@ -1,18 +1,35 @@
 import React from 'react';
-import ReactDOM from 'react-dom';
-import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
+import ReactDOM from 'react-dom/client';
+import { RouterProvider } from 'react-router-dom';
+import { createBrowserRouter } from 'react-router-dom';
+import AuthCallback from './components/Auth/callback';
 import './index.css';
 import App from './App';
 import Home from './components/Home';
 
-ReactDOM.render(
+const router = createBrowserRouter([
+  {
+    path: '/',
+    element: <App />
+  },
+  {
+    path: '/home',
+    element: <Home />
+  },
+  {
+    path: '/auth/callback',
+    element: <AuthCallback />
+  }
+]);
+
+// Create root and render
+ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <Router>
-      <Routes>
-        <Route path="/" element={<App />} />
-        <Route path="/home" element={<Home />} />
-      </Routes>
-    </Router>
-  </React.StrictMode>,
-  document.getElementById('root')
+    <RouterProvider router={router} />
+  </React.StrictMode>
 );
+
+
+
+
+
