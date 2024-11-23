@@ -418,7 +418,7 @@ async def process_message_public(request: Request):
         if not conversation_id:
             print('No conversation ID. Creating a new conversation...')
             conversation_response = supabase.table('conversations') \
-                .insert({'user_id': user_id, 'title': f"Public Chat with User {user_id}"}) \
+                .insert({'user_id': 'public', 'title': f"Public Chat with User {user_id}"}) \
                 .select() \
                 .single() \
                 .execute()
