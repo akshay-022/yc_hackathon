@@ -7,23 +7,36 @@ import { faN } from '@fortawesome/free-solid-svg-icons';
 import Chat from './Chat';
 import AddContent from './AddContent';
 
-
-
 function Home() {
   const [username, setUsername] = useState('User');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [authStatus, setAuthStatus] = useState({
+    twitter: false,
+    notion: false
+  });
   const navigate = useNavigate();
 
   useEffect(() => {
     // Check if user is authenticated and fetch profile
-    const fetchUser = async () => {
+    const checkAuthStatus = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
+        console.log('Checking auth status:', user);
         
         if (!user) {
           navigate('/');
           return;
+        }
+
+        // Check which providers are connected
+        if (user.identities) {
+          const status = {
+            twitter: user.identities.some(id => id.provider === 'twitter'),
+            notion: user.identities.some(id => id.provider === 'notion')
+          };
+          console.log('Auth status:', status);
+          setAuthStatus(status);
         }
 
         const { data: profile } = await supabase
@@ -43,7 +56,7 @@ function Home() {
       }
     };
 
-    fetchUser();
+    checkAuthStatus();
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -116,6 +129,30 @@ function Home() {
     });
   };
 
+  const ConnectedBadge = () => (
+    <div className="flex items-center justify-center bg-green-500/10 border border-green-500/20 rounded-full w-8 h-8">
+      <svg 
+        className="w-4 h-4 text-green-500" 
+        fill="none" 
+        stroke="currentColor" 
+        viewBox="0 0 24 24"
+      >
+        <path 
+          strokeLinecap="round" 
+          strokeLinejoin="round" 
+          strokeWidth={2} 
+          d="M5 13l4 4L19 7" 
+        />
+      </svg>
+    </div>
+  );
+
+  const NotConnectedBadge = () => (
+    <div className="flex items-center justify-center bg-gray-500/10 border border-gray-500/20 rounded-full w-8 h-8">
+      <div className="w-4 h-4 rounded-full border-2 border-gray-500/40" />
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-black-primary text-white">
       {/* Logout button in top right */}
@@ -129,49 +166,98 @@ function Home() {
         </button>
       </div>
 
-      {/* Main content */}
-      <div className="flex flex-col items-center justify-center min-h-screen">
-        <div className="bg-black-secondary p-8 rounded-lg shadow-lg w-full max-w-md">
-          <div className="text-center mb-6">
-            <h1 className="text-4xl font-bold text-white">Hello, {username}</h1>
-            <p className="text-base text-gray-400 mt-2">Authenticate with your favorite services</p>
-          </div>
-          
-          <div className="space-y-4">
-            <button 
-              onClick={handleTwitterAuth} 
-              className="w-full bg-blue-500 text-white py-2 rounded-md hover:bg-blue-600 transition duration-300 flex items-center justify-center gap-2"
-            >
-              <FontAwesomeIcon icon={faTwitter} className="w-5 h-5" />
-              Authenticate with Twitter
-            </button>
-            <button 
-              onClick={handleNotionAuth} 
-              className="w-full bg-gray-800 text-white py-2 rounded-md hover:bg-gray-900 transition duration-300 flex items-center justify-center gap-2"
-            >
-              <FontAwesomeIcon icon={faN} className="w-5 h-5" />
-              Authenticate with Notion
-            </button>
-          </div>
-          
-          <div className="mt-4">
-            <button 
-              onClick={handleShowSession}
-              className="w-full bg-purple-600 text-white py-2 rounded-md hover:bg-purple-700 transition duration-300"
-            >
-              Show Current Session
-            </button>
-          </div>
-        </div>
+      {/* Main content with proper padding and max-width */}
+      <div className="container mx-auto px-8 pr-24 py-8 h-screen max-w-[1800px]">
+        <div className="grid grid-cols-[1.2fr_1fr] gap-8 h-[calc(100vh-4rem)]">
+          {/* Left side - Message Input */}
+          {authStatus.twitter && (
+            <div className="h-full">
+              <div className="bg-black-secondary p-8 rounded-lg shadow-lg h-full">
+                <div className="flex flex-col h-full">
+                  <h2 className="text-2xl font-bold mb-4">Your Message</h2>
+                  <div className="flex-1 flex flex-col">
+                    <textarea
+                      placeholder="Type your message or paste a URL..."
+                      className="flex-1 p-4 bg-black-primary text-white rounded-lg border border-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none mb-4"
+                    />
+                    <div className="flex justify-end space-x-3">
+                      <button className="px-6 py-3 bg-gray-700 text-white rounded-md hover:bg-gray-600 transition duration-300">
+                        Clear
+                      </button>
+                      <button className="px-6 py-3 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition duration-300">
+                        Send
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
-        {/* AddContent component below authentication buttons */}
-        <div className="mt-8 w-full max-w-md">
-          <AddContent />
-        </div>
+          {/* Right side - Split into Auth (top) and Chat (bottom) */}
+          <div className="flex flex-col space-y-6 h-full">
+            {/* Auth Content - Top */}
+            <div className="bg-black-secondary p-6 rounded-lg shadow-lg">
+              <div className="text-center mb-4">
+                <h1 className="text-3xl font-bold text-white">
+                  {authStatus.twitter ? 'Mirror' : 'Hello'}, {username}
+                </h1>
+                <p className="text-sm text-gray-400 mt-2">
+                  {authStatus.twitter 
+                    ? 'Connect additional services'
+                    : 'Please connect your Twitter account to continue'
+                  }
+                </p>
+              </div>
+              
+              <div className="space-y-3">
+                <div className="flex items-center space-x-3">
+                  {authStatus.twitter ? <ConnectedBadge /> : <NotConnectedBadge />}
+                  <button 
+                    onClick={handleTwitterAuth} 
+                    className="flex-1 bg-blue-500 text-white py-2.5 px-4 rounded-md hover:bg-blue-600 transition duration-300 flex items-center justify-center gap-2"
+                  >
+                    <FontAwesomeIcon icon={faTwitter} className="w-5 h-5" />
+                    {authStatus.twitter ? 'Connected to Twitter' : 'Authenticate with Twitter'}
+                  </button>
+                </div>
 
-        {/* Chat component below AddContent */}
-        <div className="mt-8 w-full max-w-md">
-          <Chat />
+                <div className="flex items-center space-x-3">
+                  {authStatus.notion ? <ConnectedBadge /> : <NotConnectedBadge />}
+                  <button 
+                    onClick={handleNotionAuth} 
+                    className="flex-1 bg-gray-800 text-white py-2.5 px-4 rounded-md hover:bg-gray-900 transition duration-300 flex items-center justify-center gap-2"
+                  >
+                    <FontAwesomeIcon icon={faN} className="w-5 h-5" />
+                    {authStatus.notion ? 'Connected to Notion' : 'Authenticate with Notion'}
+                  </button>
+                </div>
+              </div>
+              
+              {authStatus.twitter && (
+                <div className="mt-4">
+                  <button 
+                    onClick={handleShowSession}
+                    className="w-full bg-purple-600 text-white py-2 rounded-md hover:bg-purple-700 transition duration-300"
+                  >
+                    Show Current Session
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Chat Window - Bottom */}
+            {authStatus.twitter && (
+              <div className="flex-1 bg-black-secondary p-6 rounded-lg shadow-lg min-h-0">
+                <div className="flex flex-col h-full">
+                  <h2 className="text-2xl font-bold mb-4">Mirror Chat</h2>
+                  <div className="flex-1 overflow-y-auto space-y-4 bg-black-primary/50 p-4 rounded-lg min-h-0">
+                    <Chat />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
