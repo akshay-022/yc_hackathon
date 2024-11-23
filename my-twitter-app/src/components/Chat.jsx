@@ -274,8 +274,8 @@ function Chat({ hasUserContent, username }) {
             </div>
           )}
 
-          <div className="flex-1 bg-gray-800 rounded-lg p-4 mb-4 overflow-hidden">
-            <div className="h-full overflow-y-auto space-y-4 pr-2">
+          <div className="flex-1 bg-gray-800 rounded-lg mb-4 overflow-hidden">
+            <div className="h-full overflow-y-auto space-y-4 pr-2" style={{ maxHeight: '300px' }}>
               {messages.map((msg, index) => (
                 <div 
                   key={index} 
