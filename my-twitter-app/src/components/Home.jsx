@@ -199,8 +199,7 @@ function Home() {
         return;
       }
       
-      const url = `${window.location.origin}/chat/${user.id}`;
-      setPublicUrl(url);
+      setPublicUrl(`${window.location.origin}/chat/${user.id}`);
       
     } catch (error) {
       console.error('Error generating public link:', error);
@@ -315,15 +314,57 @@ function Home() {
                   </button>
                   
                   {publicUrl && (
-                    <div className="mt-2 p-2 bg-gray-800 rounded-md">
-                      <p className="text-sm text-gray-400 mb-1">Your public chat link:</p>
-                      <input
-                        type="text"
-                        value={publicUrl}
-                        readOnly
-                        className="w-full bg-gray-900 text-white p-2 rounded border border-gray-700 text-sm font-mono"
-                        onClick={e => e.target.select()}
-                      />
+                    <div className="mt-2 p-2 bg-gray-800 rounded-md space-y-2">
+                      <div>
+                        <p className="text-sm text-gray-400 mb-1">Public Chat URL:</p>
+                        <input
+                          type="text"
+                          value={publicUrl}
+                          readOnly
+                          className="w-full bg-gray-900 text-white p-2 rounded border border-gray-700 text-sm font-mono"
+                          onClick={e => e.target.select()}
+                        />
+                      </div>
+
+                      <div>
+                        <p className="text-sm text-gray-400 mb-1">API Endpoint:</p>
+                        <input
+                          type="text"
+                          value={`${backendUrl}/api/process-message-public`}
+                          readOnly
+                          className="w-full bg-gray-900 text-white p-2 rounded border border-gray-700 text-sm font-mono"
+                          onClick={e => e.target.select()}
+                        />
+                      </div>
+
+                      <div>
+                        <p className="text-sm text-gray-400 mb-1">Example Request:</p>
+                        <pre className="w-full bg-gray-900 text-white p-2 rounded border border-gray-700 text-sm font-mono overflow-x-auto whitespace-pre-wrap">
+{`fetch('${backendUrl}/api/process-message-public', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    user_id: "${publicUrl.split('/').pop()}", // Your user ID
+    content: "Your message here"
+  })
+})`}
+                        </pre>
+                      </div>
+
+                      <div>
+                        <p className="text-sm text-gray-400 mb-1">Response Format:</p>
+                        <pre className="w-full bg-gray-900 text-white p-2 rounded border border-gray-700 text-sm font-mono overflow-x-auto whitespace-pre-wrap">
+{`{
+  "reply": {
+    "content": "AI response content",
+    "conversation_id": "CONVERSATION_ID",
+    "is_bot": true
+  }
+}`}
+                        </pre>
+                      </div>
                     </div>
                   )}
                 </div>
