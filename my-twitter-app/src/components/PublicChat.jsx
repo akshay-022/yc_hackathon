@@ -37,7 +37,6 @@ function PublicChat() {
           .from('conversations')
           .select('*')
           .eq('user_id', userId)
-          .eq('is_public', true)
           .single();
 
         let convId;
@@ -48,7 +47,6 @@ function PublicChat() {
             .from('conversations')
             .insert([{ 
               user_id: userId, 
-              is_public: true,
               title: `Public Chat with ${profile?.username || 'User'}`
             }])
             .select()
@@ -107,12 +105,28 @@ function PublicChat() {
 
   const handleSendMessage = async (e) => {
     e?.preventDefault();
-    if (!message.trim() || isSending || !conversationId) return;
+    if (!message.trim() || isSending) return;
 
-    setIsSending(true);
-    setIsLoadingReply(true);
+    console.log('Attempting to send message:', message);
 
     try {
+      setIsSending(true);
+      setIsLoadingReply(true);
+
+      // Ensure conversation exists
+      if (!conversationId) {
+        console.log('No conversation ID. Creating a new conversation...');
+        const { data: newConv, error: convError } = await supabase
+          .from('conversations')
+          .insert([{ user_id: userId }])
+          .select()
+          .single();
+        if (convError) throw convError;
+
+        setConversationId(newConv.id);
+        console.log('New conversation ID:', newConv.id);
+      }
+
       // Insert user message
       const { data: userMessage, error: messageError } = await supabase
         .from('messages')
@@ -125,9 +139,11 @@ function PublicChat() {
         .single();
 
       if (messageError) throw messageError;
+      setMessages((prevMessages) => [...prevMessages, userMessage]);
       setMessage('');
 
       // Process message with public endpoint
+      console.log('Sending message to backend API for processing...');
       const response = await fetch(`${backendUrl}/api/process-message-public`, {
         method: 'POST',
         headers: {
@@ -140,14 +156,14 @@ function PublicChat() {
         }),
       });
 
-      if (!response.ok) {
+      const responseData = await response.json();
+      if (response.ok) {
+        console.log('Received reply from backend:', responseData);
+        setMessages((prevMessages) => [...prevMessages, responseData.reply]);
+      } else {
         const errorData = await response.json();
         throw new Error(errorData.detail || 'Failed to process message');
       }
-
-      const responseData = await response.json();
-      console.log('Bot response:', responseData);
-
     } catch (error) {
       console.error('Error sending message:', error);
       // Optionally show error to user
