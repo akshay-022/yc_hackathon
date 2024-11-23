@@ -1,4 +1,4 @@
--- Migration: Create scraped_content table
+ -- Migration: Create scraped_content table
 -- Purpose: Store content scraped from Twitter, Notion, and YouTube for each user.
 -- Affected tables: scraped_content
 -- Special considerations: Ensure Row Level Security (RLS) is enabled.
