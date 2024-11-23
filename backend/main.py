@@ -359,7 +359,7 @@ class ContentProcessRequest(BaseModel):
     user_id: str
 
 @app.post("/api/process-content")
-async def process_content(request: ContentProcessRequest):
+async def process_content(request: ContentRequest):
     """
     Process text to extract and fetch content from all URLs.
     
@@ -370,10 +370,10 @@ async def process_content(request: ContentProcessRequest):
         dict: Processed text with URL contents
     """
     try:
-        logger.debug(f"Processing content request: {request.text}")
+        logger.debug(f"Processing content request: {request.content}")
         
         # Process the content using get_complete_content
-        processed_text = get_complete_content(request.text)
+        processed_text = get_complete_content(request.content)
         
         # Reuse add_content logic
         content_request = ContentRequest(
@@ -391,6 +391,84 @@ async def process_content(request: ContentProcessRequest):
         
     except Exception as e:
         logger.error(f"Error processing content: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/process-message-public")
+async def process_message_public(request: Request):
+    try:
+        body = await request.json()
+        print(f"Raw request body: {body}")
+        
+        # Required fields validation
+        required_fields = ['conversation_id', 'user_id', 'content']
+        for field in required_fields:
+            if field not in body:
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"Missing required field: {field}"
+                )
+        
+        conversation_id = body['conversation_id']
+        user_id = body['user_id']  # The user whose content we're using
+        content = body['content']
+
+        # Verify this is a public conversation
+        conversation_response = supabase.table('conversations') \
+            .select('*') \
+            .eq('id', conversation_id) \
+            .eq('is_public', True) \
+            .execute()
+
+        if not conversation_response.data:
+            raise HTTPException(
+                status_code=403, 
+                detail="Conversation not found or not public"
+            )
+
+        # Get the target user's documents
+        user_documents = fetch_and_concatenate_user_documents(user_id)
+
+        # Generate response based on available content
+        if not user_documents:
+            print("No user content found, generating response without RAG")
+            bot_response_content = ai_client.generate_response_with_llm(content, [])
+            print(f"Generated bot response without RAG: {bot_response_content}")
+        else:
+            k = 5
+            print(f"Found user documents: {user_documents}")
+            all_content = [doc['content'] for doc in user_documents]
+            ranked_documents = ai_client.rerank_documents(all_content, content, k)
+            
+            if not ranked_documents:
+                bot_response_content = ai_client.generate_response_with_llm(content, [])
+                print(f"No relevant documents found, generating response without RAG: {bot_response_content}")
+            else:
+                top_documents = ranked_documents[:k]
+                bot_response_content = ai_client.generate_response_with_llm(content, top_documents)
+                print(f"Generated bot response with RAG: {bot_response_content}")
+
+        # Insert bot response into messages
+        bot_message = {
+            'content': bot_response_content,
+            'conversation_id': conversation_id,
+            'is_bot': True
+        }
+
+        print(f"Inserting bot message into database: {bot_message}")
+        bot_response = supabase.table('messages').insert(bot_message).execute()
+        print(f"Database response: {bot_response}")
+
+        return {
+            "reply": {
+                "content": bot_response_content,
+                "conversation_id": conversation_id,
+                "is_bot": True
+            }
+        }
+
+    except Exception as e:
+        print(f"Exception occurred in process_message_public: {e}")
+        print(f"Exception traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
