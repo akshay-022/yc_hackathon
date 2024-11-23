@@ -52,10 +52,6 @@ async def root():
     }
     return tables
 
-class MessageRequest(BaseModel):
-    conversation_id: int
-    user_id: Optional[UUID]
-    content: str
 
 class ContentRequest(BaseModel):
     user_id: str
@@ -103,34 +99,36 @@ async def process_message(request: Request):
     try:
         body = await request.json()
         print(f"Raw request body: {body}")
-        message_request = MessageRequest(**body)
-        print(f"Parsed request: {message_request}")
+        conversation_id = body['conversation_id']
+        user_id = body['user_id']
+        content = body['content']
 
         # Fetch scraped content of different types
-        user_content = get_user_scraped_content(str(message_request.user_id), 'user')
+        user_content = get_user_scraped_content(str(user_id), 'user')
 
         # If no user content is found, generate a response without RAG
         if not user_content:
-            bot_response_content = ai_client.generate_response_with_llm(message_request.content, [])
+            bot_response_content = ai_client.generate_response_with_llm(content, [])
             print(f"Generated bot response without RAG: {bot_response_content}")
         else:
             # Combine all content
+            print(user_content)
             all_content = user_content
 
             # Rerank documents using the AI client
-            ranked_documents = ai_client.rerank_documents(all_content, message_request.content)
+            ranked_documents = ai_client.rerank_documents(all_content, content)
             if not ranked_documents:
                 raise HTTPException(status_code=404, detail="No relevant documents found")
 
             # Use the AI client to generate a response based on the top-ranked documents
             top_documents = ranked_documents[:3]  # Get top 3 documents
-            bot_response_content = ai_client.generate_response_with_llm(message_request.content, top_documents)
+            bot_response_content = ai_client.generate_response_with_llm(content, top_documents)
             print(f"Generated bot response: {bot_response_content}")
 
         # Insert the bot's response into the messages table
         bot_message = {
             'content': bot_response_content,
-            'conversation_id': message_request.conversation_id,
+            'conversation_id': conversation_id,
             'is_bot': True
         }
 
@@ -141,7 +139,7 @@ async def process_message(request: Request):
         return {
             "reply": {
                 "content": bot_response_content,
-                "conversation_id": message_request.conversation_id,
+                "conversation_id": conversation_id,
                 "is_bot": True
             }
         }
