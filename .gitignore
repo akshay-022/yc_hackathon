@@ -7,3 +7,6 @@ node_modules/
 
 #Ignore .pyc files
 backend/__pycache__/
+
+
+*.env
