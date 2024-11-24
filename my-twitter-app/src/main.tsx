@@ -8,7 +8,7 @@ import App from './App';
 import Home from './components/Home';
 import { BackendProvider } from './BackendContext';
 
-const BACKEND_URL = 'http://localhost:8000'; // Set your backend URL here
+const BACKEND_URL = 'http://localhost:8000';
 import PublicChat from './components/PublicChat';
 
 const router = createBrowserRouter([
@@ -30,16 +30,10 @@ const router = createBrowserRouter([
   }
 ]);
 
-// Create root and render
-ReactDOM.createRoot(document.getElementById('root')).render(
+ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
     <BackendProvider backendUrl={BACKEND_URL}>
       <RouterProvider router={router} />
     </BackendProvider>
   </React.StrictMode>
-);
-
-
-
-
-
+); 

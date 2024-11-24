@@ -4,14 +4,13 @@ import { supabase } from '../supabaseClient';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faTwitter } from '@fortawesome/free-brands-svg-icons';
 
-function SignIn({ onAuthSuccess, onSwitchToSignUp }) {
+function SignIn({ onAuthSuccess, onSwitchToSignUp }: { onAuthSuccess: () => void, onSwitchToSignUp: () => void }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [authError, setAuthError] = useState(null);
+  const [authError, setAuthError] = useState<string | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
   
-  // Get returnTo from location state, default to /home
   const returnTo = location.state?.returnTo || '/home';
   const message = location.state?.message;
 
@@ -24,12 +23,12 @@ function SignIn({ onAuthSuccess, onSwitchToSignUp }) {
       
       if (error) throw error;
       navigate(returnTo);
-    } catch (error) {
+    } catch (error: any) {
       setAuthError(error.message);
     }
   };
 
-  const handleOAuthSignIn = async (provider) => {
+  const handleOAuthSignIn = async (provider: string) => {
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider,
@@ -39,7 +38,7 @@ function SignIn({ onAuthSuccess, onSwitchToSignUp }) {
       });
       
       if (error) throw error;
-    } catch (error) {
+    } catch (error: any) {
       console.error('OAuth error:', error);
       setAuthError(error.message);
     }
@@ -47,8 +46,6 @@ function SignIn({ onAuthSuccess, onSwitchToSignUp }) {
 
   return (
       <div className="max-w-md w-full p-6 bg-black-secondary rounded-lg">
-        
-        
         <h1 className="text-2xl font-bold text-center mb-6 text-white">Login to Mirror</h1>
         {message && (
           <div className="mb-4 p-3 bg-blue-500/20 border border-blue-500/30 rounded text-blue-200">
@@ -56,7 +53,6 @@ function SignIn({ onAuthSuccess, onSwitchToSignUp }) {
           </div>
         )}
         <div className="space-y-4">
-          {/* OAuth Buttons */}
           <button 
             onClick={() => handleOAuthSignIn('twitter')}
             className="w-full bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 transition duration-200 flex items-center justify-center gap-2"
@@ -65,7 +61,6 @@ function SignIn({ onAuthSuccess, onSwitchToSignUp }) {
             Continue with Twitter
           </button>
 
-          {/* Divider */}
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-gray-700"></div>
@@ -75,7 +70,6 @@ function SignIn({ onAuthSuccess, onSwitchToSignUp }) {
             </div>
           </div>
 
-          {/* Email/Password Form */}
           <input
             type="email"
             placeholder="Email"

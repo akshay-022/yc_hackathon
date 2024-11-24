@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { supabase } from '../supabaseClient';
 
-function SignUp({ onAuthSuccess, onSwitchToSignIn, onSignUpSuccess = () => {} }) {
+function SignUp({ onAuthSuccess, onSwitchToSignIn, onSignUpSuccess = () => {} }: { onAuthSuccess: () => void, onSwitchToSignIn: () => void, onSignUpSuccess?: () => void }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
-  const [authError, setAuthError] = useState(null);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
@@ -15,7 +15,6 @@ function SignUp({ onAuthSuccess, onSwitchToSignIn, onSignUpSuccess = () => {} })
       setAuthError(null);
       setIsSuccess(false);
 
-      // First create the auth user with username
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
@@ -43,12 +42,11 @@ function SignUp({ onAuthSuccess, onSwitchToSignIn, onSignUpSuccess = () => {} })
       setIsSuccess(true);
       onSignUpSuccess();
       
-      // Clear form
       setEmail('');
       setPassword('');
       setUsername('');
       
-    } catch (error) {
+    } catch (error: any) {
       setAuthError(error.message);
       setIsSuccess(false);
     } finally {

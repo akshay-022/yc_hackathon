@@ -19,31 +19,25 @@ function Home() {
   const [hasUserContent, setHasUserContent] = useState(false);
   const [message, setMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [copyStatus, setCopyStatus] = useState('');
   const [publicUrl, setPublicUrl] = useState('');
   const [showPublicInfo, setShowPublicInfo] = useState(false);
   const navigate = useNavigate();
   const backendUrl = useBackend();
 
   useEffect(() => {
-    // Check if user is authenticated and fetch profile
     const checkAuthStatus = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
-        console.log('Checking auth status:', user);
-        
         if (!user) {
           navigate('/');
           return;
         }
 
-        // Check which providers are connected
         if (user.identities) {
           const status = {
             twitter: user.identities.some(id => id.provider === 'twitter'),
             notion: user.identities.some(id => id.provider === 'notion')
           };
-          console.log('Auth status:', status);
           setAuthStatus(status);
         }
 
@@ -57,7 +51,6 @@ function Home() {
           setUsername(profile.username);
         }
 
-        // Check if user has any content
         const response = await fetch(`${backendUrl}/api/user-documents/${user.id}`);
         const result = await response.json();
         setHasUserContent(result.documents.length > 0);
@@ -71,7 +64,6 @@ function Home() {
 
     checkAuthStatus();
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT' || !session) {
         navigate('/');
@@ -87,7 +79,6 @@ function Home() {
     setHasUserContent(true);
   };
 
-  // Show loading state
   if (isLoading) {
     return (
       <div className="min-h-screen bg-black-primary text-white flex items-center justify-center">
@@ -148,10 +139,8 @@ function Home() {
 
       const data = await response.json();
       console.log('Notion sync successful:', data);
-      // Optionally add a toast/notification here
     } catch (error) {
       console.error('Error syncing Notion content:', error);
-      // Optionally add error handling UI feedback
     }
   };
 
@@ -181,12 +170,10 @@ function Home() {
       const data = await response.json();
       console.log('Content processed:', data);
       
-      // Clear the message after successful submission
       setMessage('');
       
     } catch (error) {
       console.error('Error processing content:', error);
-      // Optionally add error feedback to the UI
     } finally {
       setIsSubmitting(false);
     }
@@ -234,7 +221,6 @@ function Home() {
 
   return (
     <div className="h-screen bg-black-primary text-white">
-      {/* Logout button in top right */}
       <div className="absolute top-4 right-4 z-10">
         <button
           onClick={handleLogout}
@@ -245,23 +231,19 @@ function Home() {
         </button>
       </div>
 
-      {/* Main content with fixed height */}
       <div className="h-screen pt-4 px-4 pb-4">
         <div className={`h-[calc(100%-1rem)] max-w-[90%] mx-auto ${
           !authStatus.twitter 
             ? 'flex justify-center items-start' 
             : 'grid grid-cols-[1fr_1fr]'
         } gap-4`}>
-          {/* Left side - Add Content */}
           {authStatus.twitter && (
             <div className="h-full bg-black-secondary rounded-lg shadow-lg p-4 flex flex-col">
               <AddContent onContentAdded={handleContentAdded} />
             </div>
           )}
 
-          {/* Right side - Auth box will be centered when not authenticated */}
           <div className={`h-full flex flex-col gap-4 ${!authStatus.twitter ? 'w-[500px]' : ''}`}>
-            {/* Auth Content - Top */}
             <div className="bg-black-secondary rounded-lg shadow-lg p-4">
               <div className="text-center mb-4">
                 <h1 className="text-2xl font-bold text-white">
@@ -377,7 +359,6 @@ function Home() {
               )}
             </div>
 
-            {/* Chat Window - Bottom */}
             {authStatus.twitter && (
               <div className="flex-1 bg-black-secondary rounded-lg shadow-lg p-4 min-h-0 flex flex-col">
                 <h2 className="text-2xl font-bold mb-4">Mirror Chat</h2>

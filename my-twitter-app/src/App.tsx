@@ -21,7 +21,7 @@ function App() {
     setIsSignUp((prev) => !prev);
   };
 
-  const handleMouseMove = (e) => {
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     const { clientX, clientY, currentTarget } = e;
     const { offsetWidth, offsetHeight } = currentTarget;
     const x = (clientX / offsetWidth) * 100;
@@ -59,4 +59,4 @@ function App() {
   );
 }
 
-export default App;
+export default App; 

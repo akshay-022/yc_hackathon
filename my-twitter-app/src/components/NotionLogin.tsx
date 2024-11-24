@@ -10,19 +10,11 @@ function NotionLogin() {
 
   const checkNotionConnection = async () => {
     try {
-      const { data: { user }, error } = await supabase.auth.getUser();
-      console.log('Current user data:', {
-        id: user?.id,
-        email: user?.email,
-        identities: user?.identities,
-        app_metadata: user?.app_metadata
-      });
-
+      const { data: { user } } = await supabase.auth.getUser();
       if (user?.identities) {
         const hasNotion = user.identities.some(
           identity => identity.provider === 'notion'
         );
-        console.log('Has Notion connection:', hasNotion);
         setIsConnected(hasNotion);
       }
     } catch (error) {
@@ -32,27 +24,13 @@ function NotionLogin() {
 
   const handleNotionLogin = async () => {
     try {
-      console.log('Starting Notion auth...');
-      const { data, error } = await supabase.auth.signInWithOAuth({
+      const { error } = await supabase.auth.signInWithOAuth({
         provider: 'notion',
         options: {
           redirectTo: 'https://tznrpdmwzpuispggvpdk.supabase.co/auth/v1/callback'
         }
       });
-      
       if (error) throw error;
-      console.log('Notion auth response:', data);
-
-      const { data: { session } } = await supabase.auth.getSession();
-      console.log('Session after Notion auth:', {
-        provider_token: session?.provider_token,
-        access_token: session?.access_token,
-        user: {
-          id: session?.user?.id,
-          email: session?.user?.email,
-          identities: session?.user?.identities
-        }
-      });
     } catch (error) {
       console.error('Error with Notion auth:', error.message);
     }

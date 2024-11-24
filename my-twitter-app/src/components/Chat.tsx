@@ -1,16 +1,17 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { useBackend } from '../BackendContext';
+import anthropic from 'anthropic';
 
-function Chat({ hasUserContent, username }) {
+const anthropicClient = new anthropic.Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+function Chat({ hasUserContent, username }: { hasUserContent: boolean, username: string }) {
   const [message, setMessage] = useState('');
-  const [messages, setMessages] = useState([]);
-  const [conversations, setConversations] = useState([]);
-  const [selectedConversationId, setSelectedConversationId] = useState(null);
+  const [messages, setMessages] = useState<any[]>([]);
+  const [conversations, setConversations] = useState<any[]>([]);
+  const [selectedConversationId, setSelectedConversationId] = useState<number | null>(null);
   const [isSending, setIsSending] = useState(false);
-  const [userId, setUserId] = useState(null);
-  const [isRenaming, setIsRenaming] = useState(false);
-  const [newTitle, setNewTitle] = useState('');
+  const [userId, setUserId] = useState<string | null>(null);
   const [isLoadingReply, setIsLoadingReply] = useState(false);
   const backendUrl = useBackend();
 
@@ -57,32 +58,14 @@ function Chat({ hasUserContent, username }) {
     fetchMessages();
   }, [selectedConversationId]);
 
-  const handleNewChat = async () => {
-    try {
-      const { data: conversationData, error: conversationError } = await supabase
-        .from('conversations')
-        .insert({ user_id: userId })
-        .select()
-        .single();
-      if (conversationError) throw conversationError;
-      
-      setConversations((prevConversations) => [...prevConversations, conversationData]);
-      setSelectedConversationId(conversationData.id);
-      setMessages([]);
-      console.log('New conversation created with ID:', conversationData.id);
-    } catch (error) {
-      console.error('Error creating new conversation:', error.message);
-    }
-  };
-
   const handleSendMessage = async () => {
     if (message.trim() === '' || isSending) return;
-  
+
     console.log('Attempting to send message:', message);
-  
+
     try {
       setIsSending(true);
-  
+
       if (!selectedConversationId) {
         console.log('No conversation ID. Creating a new conversation...');
         const { data: conversationData, error: conversationError } = await supabase
@@ -91,42 +74,50 @@ function Chat({ hasUserContent, username }) {
           .select()
           .single();
         if (conversationError) throw conversationError;
-  
+
         setConversations((prevConversations) => [...prevConversations, conversationData]);
         setSelectedConversationId(conversationData.id);
         console.log('New conversation ID:', conversationData.id);
       }
-  
+
       const { data: messageData, error: messageError } = await supabase
         .from('messages')
         .insert([{ content: message, conversation_id: selectedConversationId, is_bot: false }])
         .select();
       if (messageError) throw messageError;
-  
+
       console.log('Message sent successfully:', messageData);
-  
+
       setMessages((prevMessages) => [...prevMessages, ...messageData]);
       setMessage('');
-  
+
       console.log('Sending message to backend API for processing...');
       setIsLoadingReply(true);
-      const response = await fetch(`${backendUrl}/api/process-message`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-            conversation_id: selectedConversationId, 
-            user_id: userId, 
-            content: message 
-        }),
+
+      // Generate response using Anthropic API
+      const response = await anthropicClient.messages.create({
+        model: "claude-3-5-sonnet-20240620",
+        max_tokens: 1024,
+        messages: [
+          { role: "user", content: message }
+        ]
       });
-  
-      const result = await response.json();
-      if (response.ok) {
-        console.log('Received reply from backend:', result.reply);
-        setMessages((prevMessages) => [...prevMessages, { ...result.reply, created_at: new Date().toISOString() }]);
-      } else {
-        console.error('Error processing message:', result.detail);
-      }
+
+      const botResponseContent = response.content[0].text.trim();
+      console.log('Generated bot response:', botResponseContent);
+
+      // Insert the bot's response into the messages table
+      const botMessage = {
+        content: botResponseContent,
+        conversation_id: selectedConversationId,
+        is_bot: true
+      };
+
+      const botResponse = await supabase.table('messages').insert(botMessage).execute();
+      console.log('Database response:', botResponse);
+
+      setMessages((prevMessages) => [...prevMessages, { ...botMessage, created_at: new Date().toISOString() }]);
+
     } catch (error) {
       console.error('Error sending message:', error);
     } finally {
@@ -135,57 +126,12 @@ function Chat({ hasUserContent, username }) {
     }
   };
 
-  const handleDeleteConversation = async (conversationId) => {
-    try {
-      const { error } = await supabase
-        .from('conversations')
-        .delete()
-        .eq('id', conversationId);
-      if (error) throw error;
-
-      setConversations((prevConversations) => prevConversations.filter(c => c.id !== conversationId));
-
-      if (selectedConversationId === conversationId) {
-        const remainingConversations = conversations.filter(c => c.id !== conversationId);
-        if (remainingConversations.length > 0) {
-          setSelectedConversationId(remainingConversations[0].id);
-        } else {
-          setSelectedConversationId(null);
-          setMessages([]);
-        }
-      }
-
-      console.log('Conversation deleted:', conversationId);
-    } catch (error) {
-      console.error('Error deleting conversation:', error.message);
-    }
-  };
-
-  const handleRenameConversation = async (conversationId) => {
-    try {
-      const { error } = await supabase
-        .from('conversations')
-        .update({ title: newTitle })
-        .eq('id', conversationId);
-      if (error) throw error;
-      setConversations(conversations.map(c => c.id === conversationId ? { ...c, title: newTitle } : c));
-      setIsRenaming(false);
-      console.log('Conversation renamed:', conversationId);
-    } catch (error) {
-      console.error('Error renaming conversation:', error.message);
-    }
-  };
-
-  const handleKeyPress = (e) => {
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
     console.log('Key press detected:', e.key);
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
     }
-  };
-
-  const handleSelectConversation = (conversationId) => {
-    setSelectedConversationId(conversationId);
   };
 
   return (
@@ -206,7 +152,7 @@ function Chat({ hasUserContent, username }) {
                       ? 'bg-blue-600 text-white' 
                       : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
                   }`}
-                  onClick={() => handleSelectConversation(conversation.id)}
+                  onClick={() => setSelectedConversationId(conversation.id)}
                 >
                   <div className="truncate">
                     {conversation.title || `Conversation ${conversation.id}`}
@@ -214,39 +160,6 @@ function Chat({ hasUserContent, username }) {
                   <div className="text-xs text-gray-400 mt-1">
                     {new Date(conversation.created_at).toLocaleDateString()}
                   </div>
-                  <div className="flex justify-end space-x-2 mt-2">
-                    <button
-                      onClick={() => handleDeleteConversation(conversation.id)}
-                      className="text-red-500 text-xs hover:underline"
-                    >
-                      Delete
-                    </button>
-                    <button
-                      onClick={() => {
-                        setIsRenaming(true);
-                        setNewTitle(conversation.title || '');
-                      }}
-                      className="text-blue-500 text-xs hover:underline"
-                    >
-                      Rename
-                    </button>
-                  </div>
-                  {isRenaming && selectedConversationId === conversation.id && (
-                    <div className="mt-2">
-                      <input
-                        type="text"
-                        value={newTitle}
-                        onChange={(e) => setNewTitle(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            handleRenameConversation(conversation.id);
-                          }
-                        }}
-                        className="w-full bg-gray-700 text-white p-2 rounded-md"
-                        placeholder="New title"
-                      />
-                    </div>
-                  )}
                 </li>
               ))}
             </ul>
@@ -254,7 +167,7 @@ function Chat({ hasUserContent, username }) {
 
           {/* New Chat button at bottom */}
           <button
-            onClick={handleNewChat}
+            onClick={() => setSelectedConversationId(null)}
             className="w-full py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
           >
             New Chat

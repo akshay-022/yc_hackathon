@@ -21,7 +21,7 @@ create policy "Allow authenticated users to insert documents"
     on public.documents
     for insert
     to authenticated
-    using (true);
+    with check (true);
 
 create policy "Allow users to select their own documents" 
     on public.documents

@@ -3,7 +3,7 @@ import { supabase } from '../supabaseClient';
 
 function TwitterLogin() {
   const [isConnected, setIsConnected] = useState(false);
-  const [currentUser, setCurrentUser] = useState(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   useEffect(() => {
     checkTwitterConnection();
@@ -11,20 +11,13 @@ function TwitterLogin() {
 
   const checkTwitterConnection = async () => {
     try {
-      const { data: { user }, error } = await supabase.auth.getUser();
-      console.log('Current user data:', {
-        id: user?.id,
-        email: user?.email,
-        identities: user?.identities
-      });
-
+      const { data: { user } } = await supabase.auth.getUser();
       setCurrentUser(user);
 
       if (user?.identities) {
         const hasTwitter = user.identities.some(
           identity => identity.provider === 'twitter'
         );
-        console.log('Has Twitter connection:', hasTwitter);
         setIsConnected(hasTwitter);
       }
     } catch (error) {
@@ -34,55 +27,40 @@ function TwitterLogin() {
 
   const handleTwitterLogin = async () => {
     try {
-      // Get current user before Twitter auth
       const { data: { user: existingUser } } = await supabase.auth.getUser();
-      console.log('Existing user before Twitter auth:', existingUser);
 
       if (existingUser) {
-        // Store current session details
         const { data: { session: currentSession } } = await supabase.auth.getSession();
         const currentAccessToken = currentSession?.access_token;
         const currentRefreshToken = currentSession?.refresh_token;
-        
-        console.log('Current session tokens stored');
 
-        // Initiate Twitter auth with linkIdentity
-        const { data, error } = await supabase.auth.linkIdentity({
+        const { error } = await supabase.auth.linkIdentity({
           provider: 'twitter'
         });
 
         if (error) throw error;
-        console.log('Twitter identity linked:', data);
 
-        // After successful linking, restore original session
         if (currentAccessToken && currentRefreshToken) {
           await supabase.auth.setSession({
             access_token: currentAccessToken,
             refresh_token: currentRefreshToken
           });
-          console.log('Restored original session');
         }
 
-        // Store Twitter provider token if available
         const { data: { session: newSession } } = await supabase.auth.getSession();
         if (newSession?.provider_token) {
           localStorage.setItem('twitter_provider_token', newSession.provider_token);
-          console.log('Stored Twitter provider token');
         }
       } else {
-        // Regular Twitter sign in for new users
-        const { data, error } = await supabase.auth.signInWithOAuth({
+        const { error } = await supabase.auth.signInWithOAuth({
           provider: 'twitter',
           options: {
             redirectTo: 'https://tznrpdmwzpuispggvpdk.supabase.co/auth/v1/callback'
           }
         });
-        
         if (error) throw error;
-        console.log('New Twitter sign in:', data);
       }
 
-      // Refresh connection status
       await checkTwitterConnection();
 
     } catch (error) {
