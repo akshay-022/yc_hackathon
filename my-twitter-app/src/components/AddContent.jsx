@@ -112,13 +112,13 @@ function AddContent({ onContentAdded }) {
         <h3 className="text-lg font-semibold text-white mb-2">Your Documents</h3>
         <ul className="text-white max-h-60 overflow-y-auto">
           {documents.map((doc) => (
-            <li key={doc.id} className="mb-2">
+            <li key={doc.document_id} className="mb-2">
               <div>{doc.content}</div>
               <div className="text-xs text-gray-500 mt-1 inline-block bg-gray-200 rounded-full px-2 py-1">
                 {new Date(doc.created_at).toLocaleString()}
               </div>
               <button
-                onClick={() => handleDeleteDocument(doc.id)}
+                onClick={() => handleDeleteDocument(doc.document_id)}
                 className="text-red-500 text-xs hover:underline ml-2"
               >
                 Delete
