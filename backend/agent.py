@@ -65,8 +65,8 @@ class AIClient:
         try:
             # Prepare the input for the Anthropic LLM
             retrieved_doc = "\n".join(documents)
-            prompt = f"""
-                Based on the information: '{retrieved_doc}', generate a response for {query}. 
+            prompt = f""" You are an agent mirroring a person. The person's context is '{retrieved_doc}'
+                Generate a response for {query}. 
                 Generate only the reply, no other text.
                 For example, if the query is "What do you like?", the reply should be "I like apples."
             """
