@@ -32,29 +32,25 @@ function App() {
   };
 
   return (
-    <div
-      className="flex flex-col items-center justify-center min-h-screen"
+    <div 
+      className="min-h-screen bg-black-primary"
       onMouseMove={handleMouseMove}
       style={{
-        background: `radial-gradient(circle at ${gradientPosition.x}% ${gradientPosition.y}%, rgba(79, 70, 229, 0.8), rgba(236, 72, 153, 0.8) ${gradientSize}%)`,
+        background: `radial-gradient(circle at ${gradientPosition.x}% ${gradientPosition.y}%, rgba(79, 70, 229, 0.15), rgba(236, 72, 153, 0.15) ${gradientSize}%), rgb(0, 0, 0)`,
       }}
     >
-      <div className="max-w-md w-full p-6 bg-black-secondary rounded-lg shadow-lg">
-        {isSignUp ? (
-          <SignUp onAuthSuccess={handleAuthSuccess} onSignUpSuccess={handleSignUpSuccess} />
-        ) : (
-          <SignIn onAuthSuccess={handleAuthSuccess} onSwitchToSignUp={toggleAuthMode} />
-        )}
-
-        <div className="mt-6 text-center">
-          <button
-            onClick={toggleAuthMode}
-            className="text-indigo-600 hover:text-indigo-500 font-medium"
-          >
-            {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
-          </button>
-        </div>
-      </div>
+      {isSignUp ? (
+        <SignUp 
+          onAuthSuccess={handleAuthSuccess} 
+          onSignUpSuccess={handleSignUpSuccess} 
+          onSwitchToSignIn={toggleAuthMode} 
+        />
+      ) : (
+        <SignIn 
+          onAuthSuccess={handleAuthSuccess} 
+          onSwitchToSignUp={toggleAuthMode} 
+        />
+      )}
     </div>
   );
 }
