@@ -371,20 +371,20 @@ function Home() {
         </button>
       </div>
 
-      <div className="h-screen pt-4 px-4 pb-4">
-        <div className={`h-[calc(100%-1rem)] max-w-[90%] mx-auto ${
+      <div className="h-full p-4">
+        <div className={`h-full max-w-[90%] mx-auto ${
           !authStatus.twitter 
             ? 'flex justify-center items-start' 
             : 'grid grid-cols-[1fr_1fr]'
         } gap-4`}>
           {authStatus.twitter && (
-            <div className="h-full bg-black-secondary rounded-lg shadow-lg p-4 flex flex-col">
+            <div className="h-full bg-black-secondary rounded-lg shadow-lg p-4 flex flex-col overflow-auto">
               <AddContent />
             </div>
           )}
 
           <div className={`h-full flex flex-col gap-4 ${!authStatus.twitter ? 'w-[500px]' : ''}`}>
-            <div className="bg-black-secondary rounded-lg shadow-lg p-4">
+            <div className="bg-black-secondary rounded-lg shadow-lg p-4 overflow-auto">
               <div className="text-center mb-4">
                 <h1 className="text-2xl font-bold text-white">
                   Hello, {username}
@@ -500,9 +500,9 @@ function Home() {
             </div>
 
             {authStatus.twitter && (
-              <div className="flex-1 bg-black-secondary rounded-lg shadow-lg p-4 min-h-0 flex flex-col">
+              <div className="flex-1 bg-black-secondary rounded-lg shadow-lg p-4 flex flex-col min-h-0">
                 <h2 className="text-2xl font-bold mb-4">Mirror Chat</h2>
-                <div className="flex-1 min-h-0">
+                <div className="flex-1 overflow-auto">
                   <Chat hasUserContent={true} username={username} />
                 </div>
               </div>

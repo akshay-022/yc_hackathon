@@ -22,7 +22,8 @@ function AddContent({ hasUserContent }: { hasUserContent: boolean }) {
           const { data, error } = await supabase
             .from('documents')
             .select('*')
-            .eq('user_id', user.id);
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false });
 
           if (error) {
             console.error('Error fetching documents:', error.message);
@@ -72,7 +73,7 @@ function AddContent({ hasUserContent }: { hasUserContent: boolean }) {
 
       if (response.data) {
         const document = response.data.document;
-        setDocuments((prevDocuments) => [...prevDocuments, document]);
+        setDocuments((prevDocuments) => [document, ...prevDocuments]);
         setContent('');
         hasUserContent = true;
       } else {
