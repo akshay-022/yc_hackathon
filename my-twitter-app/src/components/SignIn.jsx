@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -31,10 +31,11 @@ function SignIn({ onAuthSuccess, onSwitchToSignUp }) {
 
   const handleOAuthSignIn = async (provider) => {
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
-          redirectTo: `${window.location.origin}${returnTo}`
+          redirectTo: `${window.location.origin}${returnTo}`,
+          scopes: 'tweet.read users.read email offline_access', // Added offline_access for refresh token
         }
       });
       

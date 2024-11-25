@@ -25,12 +25,67 @@ function Home() {
   const navigate = useNavigate();
   const backendUrl = useBackend();
 
+  const createProfile = async (user, metadata, session) => {
+    try {
+      // First check if profile exists
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', user.id)
+        .single();
+
+      // If profile exists, skip creation
+      if (existingProfile) {
+        console.log('Profile already exists, skipping creation');
+        return;
+      }
+
+      // Continue with profile creation only for new users
+      const username = metadata.user_name || 
+                      metadata.preferred_username || 
+                      metadata.name || 
+                      user.email?.split('@')[0] || 
+                      `user_${user.id.slice(0, 8)}`;
+      
+      const email = user.email || `${username}@placeholder.com`;
+
+      const profileData = {
+        id: user.id,
+        username: username,
+        email: email,
+        updated_at: new Date().toISOString(),
+        twitter_username: metadata.user_name || null,
+        twitter_access_token: session?.provider_token || null,
+        twitter_refresh_token: session?.provider_refresh_token || null,
+        twitter_token_expires_at: session
+          ? null
+          : null
+      };
+
+      console.log('Creating new profile with data:', profileData);
+
+      const { error } = await supabase
+        .from('profiles')
+        .upsert(profileData, {
+          onConflict: 'id',
+          ignoreDuplicates: false,
+        });
+
+      if (error) throw error;
+      console.log('Profile created successfully');
+    } catch (error) {
+      console.error('Error in profile creation:', error);
+    }
+  };
+
   useEffect(() => {
     // Check if user is authenticated and fetch profile
     const checkAuthStatus = async () => {
       try {
+        const { data: { session } } = await supabase.auth.getSession();
         const { data: { user } } = await supabase.auth.getUser();
         console.log('Checking auth status:', user);
+        console.log('Session:', session);
         
         if (!user) {
           navigate('/');
@@ -45,6 +100,36 @@ function Home() {
           };
           console.log('Auth status:', status);
           setAuthStatus(status);
+
+          // If Twitter is connected, ensure profile exists
+          if (status.twitter) {
+            await createProfile(user, user.user_metadata, session);
+            
+            // Check and update Twitter username if missing
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('twitter_username')
+              .eq('id', user.id)
+              .single();
+
+            if (!profile?.twitter_username) {
+              const twitterUsername = user.user_metadata?.user_name || 
+                                    user.user_metadata?.preferred_username;
+
+              if (twitterUsername) {
+                const { error: updateError } = await supabase
+                  .from('profiles')
+                  .update({ 
+                    twitter_username: twitterUsername,
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('id', user.id);
+
+                if (updateError) console.error('Error updating Twitter username:', updateError);
+                else console.log('Twitter username updated successfully:', twitterUsername);
+              }
+            }
+          }
         }
 
         const { data: profile } = await supabase
@@ -112,23 +197,41 @@ function Home() {
   };
 
   const handleTwitterAuth = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'twitter',
-      options: {
-        redirectTo: `${window.location.origin}/home`
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'twitter',
+        options: {
+          redirectTo: `${window.location.origin}/home`
+        }
+      });
+      if (error) throw error;
+      
+      // Store the tokens if authentication was successful
+      if (data?.session) {
+        await storeProviderToken('twitter', data.session);
       }
-    });
-    if (error) console.error('Twitter authentication error:', error.message);
+    } catch (error) {
+      console.error('Twitter authentication error:', error.message);
+    }
   };
 
   const handleNotionAuth = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'notion',
-      options: {
-        redirectTo: `${window.location.origin}/home`
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'notion',
+        options: {
+          redirectTo: `${window.location.origin}/home`
+        }
+      });
+      if (error) throw error;
+      
+      // Store the tokens if authentication was successful
+      if (data?.session) {
+        await storeProviderToken('notion', data.session);
       }
-    });
-    if (error) console.error('Notion authentication error:', error.message);
+    } catch (error) {
+      console.error('Notion authentication error:', error.message);
+    }
   };
 
   const handleNotionSync = async () => {
@@ -205,6 +308,44 @@ function Home() {
       setShowPublicInfo(!showPublicInfo);
     } catch (error) {
       console.error('Error generating public link:', error);
+    }
+  };
+
+  const storeProviderToken = async (provider, session) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('No user found');
+
+      const identity = user.identities?.find(i => i.provider === provider);
+      if (!identity) throw new Error(`No ${provider} identity found`);
+
+      // Create update object based on provider
+      const updates = {
+        id: user.id, // Required for upsert
+      };
+      
+      if (provider === 'notion') {
+        updates.notion_access_token = session?.provider_token;  // Use provider_token like Twitter
+        updates.notion_refresh_token = session?.provider_refresh_token;
+        updates.notion_token_expires_at = session?.expires_at 
+          ? null
+          : null;
+      } else if (provider === 'twitter') {
+        updates.twitter_access_token = session?.provider_token;
+        updates.twitter_refresh_token = session?.provider_refresh_token;
+        updates.twitter_token_expires_at = session?.expires_at 
+          ? null
+          : null;
+      }
+
+      const { error } = await supabase
+        .from('profiles')
+        .upsert(updates);
+
+      if (error) throw error;
+      console.log(`${provider} token stored successfully in profiles`);
+    } catch (error) {
+      console.error(`Error storing ${provider} token:`, error);
     }
   };
 
