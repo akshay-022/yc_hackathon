@@ -40,7 +40,8 @@ app.add_middleware(
 
 # Initialize Supabase client
 supabase_url = os.getenv("SUPABASE_URL")
-supabase_key = os.getenv("SUPABASE_KEY")
+supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+#os.getenv("SUPABASE_KEY")
 
 if not supabase_url or not supabase_key:
     raise ValueError("Missing required environment variables")
@@ -96,7 +97,7 @@ async def add_content(request: ContentRequest):
             })
 
         # Batch insert records into the database
-        response = supabase.table('scraped_content').insert(records).execute()
+        response = supabase.table('chunks').insert(records).execute()
 
         return {"message": "Content added successfully", "chunks_added": len(records), "document_id": document_id}
 
@@ -273,42 +274,45 @@ async def get_blocks_recursively(notion_client, block_id, blocks):
         if child.get('has_children'):
             await get_blocks_recursively(notion_client, child['id'], blocks)
 
+# Add this at the top with your other imports and models
+class NotionSyncRequest(BaseModel):
+    user_id: str
+    
 @app.post("/sync/notion")
-async def sync_notion_content(request: TokenRequest):
+async def sync_notion_content(request: NotionSyncRequest):
     try:
-        logger.debug(f"Received token request: {request}")
-        provider_response = await get_provider_token('notion', request.access_token)
-        logger.debug(f"Provider response: {provider_response}")
-        notion_token = provider_response['identity']['access_token']
-        user_id = provider_response['identity']['user_id']
+        user_id = request.user_id
+        logger.debug(f"Received sync request for user: {user_id}")
 
-        # Scrape all pages and blocks from Notion
+        # Get Notion token from Supabase profiles - using sync client
+        response = supabase.table('profiles') \
+            .select('notion_access_token') \
+            .eq('id', user_id) \
+            .single() \
+            .execute()
+        
+        if not response.data:
+            raise HTTPException(status_code=404, detail="User profile not found")
+        
+        notion_token = response.data.get('notion_access_token')
+        if not notion_token:
+            raise HTTPException(status_code=400, detail="Notion token not found")
+
+        # Rest of your code remains the same
         notion_client = AsyncClient(auth=notion_token)
         
-        # Fetch all pages and databases
         all_pages = await get_all_pages_and_databases(notion_client)
-        logger.debug(f"Fetched {len(all_pages)} pages/databases.")
+        
+        text_content = '\n'.join(all_pages)
 
-        # Initialize a list to store all blocks
-        all_blocks = []
-
-        # Fetch blocks for each page
-        for page in all_pages:
-            page_blocks = []
-            await get_blocks_recursively(notion_client, page['id'], page_blocks)
-            all_blocks.append({
-                'page_id': page['id'],
-                'blocks': page_blocks
-            })
-            logger.debug(f"Fetched {len(page_blocks)} blocks for page {page['id']}.")
-
-        # Here you can process or store the fetched pages and blocks as needed
-        # For example, save them to your database or file system
-
-        return {"status": "success", "message": "Notion content synced"}
+        result = await add_content(ContentRequest(content=text_content, user_id=user_id))
+        
+        print("done")
+        
     except Exception as e:
         logger.error(f"Error syncing Notion content: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 async def get_all_pages_and_databases(notion_client):
     pages = []
@@ -322,7 +326,14 @@ async def get_all_pages_and_databases(notion_client):
                 "page_size": 100,
             }
         )
-        pages.extend(response.get('results', []))
+        for page in response.get('results', []):
+            # Extract text content from each page
+            page_text = await extract_text_from_blocks(notion_client, page['id'])
+            if len(page_text.strip()) > 0:
+                pages.append(
+                    page_text
+                )
+        
         next_cursor = response.get('next_cursor')
         if not response.get('has_more'):
             break
@@ -479,6 +490,53 @@ async def process_message_public(request: Request):
         print(f"Exception occurred in process_message_public: {e}")
         print(f"Exception traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
+
+async def extract_text_from_blocks(notion_client, block_id):
+    text_content = []
+    
+    async def get_block_text(block):
+        # Extract text based on block type
+        block_type = block.get('type')
+        if not block_type:
+            return
+
+        content = block.get(block_type)
+        if not content:
+            return
+
+        # Handle different types of text blocks
+        if block_type in ['paragraph', 'heading_1', 'heading_2', 'heading_3', 'bulleted_list_item', 'numbered_list_item']:
+            rich_text = content.get('rich_text', [])
+            text = ' '.join([t.get('plain_text', '') for t in rich_text if t.get('plain_text')])
+            if text:
+                text_content.append(text)
+
+    # Get all blocks
+    blocks = []
+    next_cursor = None
+    
+    while True:
+        response = await notion_client.blocks.children.list(
+            block_id=block_id,
+            start_cursor=next_cursor,
+            page_size=100
+        )
+        
+        blocks.extend(response.get('results', []))
+        
+        next_cursor = response.get('next_cursor')
+        if not next_cursor:
+            break
+
+    # Process each block
+    for block in blocks:
+        await get_block_text(block)
+        
+        # If block has children, process them recursively
+        if block.get('has_children'):
+            await extract_text_from_blocks(notion_client, block['id'])
+
+    return ' '.join(text_content)
 
 if __name__ == "__main__":
     import uvicorn

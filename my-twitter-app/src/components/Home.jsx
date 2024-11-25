@@ -92,6 +92,12 @@ function Home() {
           return;
         }
 
+        const isNotionToken = session.provider_token.startsWith('ntn_');
+        const isTwitterToken = /^\d+-/.test(session.provider_token); // Matches number followed by hyphen
+
+        console.log('Is Notion Token:', isNotionToken);
+        console.log('Is Twitter Token:', isTwitterToken);
+
         // Check which providers are connected
         if (user.identities) {
           const status = {
@@ -102,7 +108,7 @@ function Home() {
           setAuthStatus(status);
 
           // If Twitter is connected, ensure profile exists
-          if (status.twitter) {
+          if (isTwitterToken) {
             await createProfile(user, user.user_metadata, session);
             
             // Check and update Twitter username if missing
@@ -136,7 +142,7 @@ function Home() {
           }
 
           // If Notion is connected
-          if (status.notion) {
+          if (isNotionToken) {
             // Get user profile
             const { data: profile } = await supabase
               .from('profiles')
@@ -236,11 +242,6 @@ function Home() {
         }
       });
       if (error) throw error;
-      
-      // Store the tokens if authentication was successful
-      if (data?.session) {
-        await storeProviderToken('twitter', data.session);
-      }
     } catch (error) {
       console.error('Twitter authentication error:', error.message);
     }
@@ -256,10 +257,6 @@ function Home() {
       });
       if (error) throw error;
       
-      // Store the tokens if authentication was successful
-      if (data?.session) {
-        await storeProviderToken('notion', data.session);
-      }
     } catch (error) {
       console.error('Notion authentication error:', error.message);
     }
@@ -267,15 +264,15 @@ function Home() {
 
   const handleNotionSync = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error('No access token found');
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('No user found');
 
-      const response = await fetch('http://localhost:8000/sync/notion', {
+      const response = await fetch(`${backendUrl}/sync/notion`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ access_token: session.access_token }),
+        body: JSON.stringify({ user_id: user.id }),
       });
 
       if (!response.ok) throw new Error('Failed to sync Notion content');
@@ -342,43 +339,6 @@ function Home() {
     }
   };
 
-  const storeProviderToken = async (provider, session) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('No user found');
-
-      const identity = user.identities?.find(i => i.provider === provider);
-      if (!identity) throw new Error(`No ${provider} identity found`);
-
-      // Create update object based on provider
-      const updates = {
-        id: user.id, // Required for upsert
-      };
-      
-      if (provider === 'notion') {
-        updates.notion_access_token = session?.provider_token;  // Use provider_token like Twitter
-        updates.notion_refresh_token = session?.provider_refresh_token;
-        updates.notion_token_expires_at = session?.expires_at 
-          ? null
-          : null;
-      } else if (provider === 'twitter') {
-        updates.twitter_access_token = session?.provider_token;
-        updates.twitter_refresh_token = session?.provider_refresh_token;
-        updates.twitter_token_expires_at = session?.expires_at 
-          ? null
-          : null;
-      }
-
-      const { error } = await supabase
-        .from('profiles')
-        .upsert(updates);
-
-      if (error) throw error;
-      console.log(`${provider} token stored successfully in profiles`);
-    } catch (error) {
-      console.error(`Error storing ${provider} token:`, error);
-    }
-  };
 
   const ConnectedBadge = () => (
     <div className="flex items-center justify-center bg-green-500/10 border border-green-500/20 rounded-full w-8 h-8">
