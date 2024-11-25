@@ -1,9 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { useBackend } from '../BackendContext';
-import anthropic from 'anthropic';
-
-const anthropicClient = new anthropic.Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 function Chat({ hasUserContent, username }: { hasUserContent: boolean, username: string }) {
   const [message, setMessage] = useState('');
@@ -94,16 +91,14 @@ function Chat({ hasUserContent, username }: { hasUserContent: boolean, username:
       console.log('Sending message to backend API for processing...');
       setIsLoadingReply(true);
 
-      // Generate response using Anthropic API
-      const response = await anthropicClient.messages.create({
-        model: "claude-3-5-sonnet-20240620",
-        max_tokens: 1024,
-        messages: [
-          { role: "user", content: message }
-        ]
+      // Use Supabase Edge Function for processing
+      const { data: responseData, error: responseError } = await supabase.functions.invoke('anthropic', {
+        body: { content: message},
       });
 
-      const botResponseContent = response.content[0].text.trim();
+      if (responseError) throw responseError;
+
+      const botResponseContent = responseData.choices[0].message.content;
       console.log('Generated bot response:', botResponseContent);
 
       // Insert the bot's response into the messages table
@@ -113,7 +108,11 @@ function Chat({ hasUserContent, username }: { hasUserContent: boolean, username:
         is_bot: true
       };
 
-      const botResponse = await supabase.table('messages').insert(botMessage).execute();
+      const botResponse = await supabase
+        .from('messages')
+        .insert([botMessage])
+        .select()
+        .single();
       console.log('Database response:', botResponse);
 
       setMessages((prevMessages) => [...prevMessages, { ...botMessage, created_at: new Date().toISOString() }]);

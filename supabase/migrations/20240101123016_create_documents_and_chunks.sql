@@ -20,7 +20,6 @@ alter table public.documents enable row level security;
 create policy "Allow authenticated users to insert documents" 
     on public.documents
     for insert
-    to authenticated
     with check (true);
 
 create policy "Allow users to select their own documents" 
@@ -72,5 +71,5 @@ create index idx_chunks_embeddings on public.chunks using ivfflat (embeddings ve
 -- Grant permissions
 grant usage on schema public to anon, authenticated, service_role;
 grant all on public.documents to authenticated, service_role;
-grant select on public.chunks to authenticated, service_role;
+grant all on public.chunks to authenticated, service_role;
 grant usage, select on sequence chunks_id_seq to authenticated, service_role; 

@@ -1,9 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { useBackend } from '../BackendContext';
-import voyageai from 'voyageai';
-
-const voyageClient = new voyageai.Client({ apiKey: process.env.VOYAGE_API_KEY });
 
 function AddContent({ onContentAdded }: { onContentAdded: () => void }) {
   const [content, setContent] = useState('');
@@ -40,46 +37,18 @@ function AddContent({ onContentAdded }: { onContentAdded: () => void }) {
     console.log('Submitting content:', content);
 
     try {
-      // Generate embeddings
-      const chunks = splitContent(content, 4000);
-      const embeddings = await Promise.all(chunks.map(chunk => 
-        voyageClient.embed({ texts: [chunk], model: "voyage-3-lite", input_type: "document" })
-      ));
+      // Use Supabase Edge Function for embedding
+      const { data: embeddingData, error: embeddingError } = await supabase.functions.invoke('voyager', {
+        body: { texts: [content]},
+      });
 
-      // Insert document and chunks into Supabase
-      const documentId = await insertDocument(userId, 'user');
-      await insertChunks(documentId, chunks, embeddings);
+      if (embeddingError) throw embeddingError;
 
       setContent('');
       onContentAdded();
     } catch (error) {
       console.error('Error:', error);
     }
-  };
-
-  const splitContent = (content: string, maxLength: number): string[] => {
-    return content.match(new RegExp(`.{1,${maxLength}}`, 'g')) || [];
-  };
-
-  const insertDocument = async (userId: string | null, source: string) => {
-    const { data, error } = await supabase
-      .from('documents')
-      .insert({ user_id: userId, scrape_source: source })
-      .select('id')
-      .single();
-    if (error) throw error;
-    return data.id;
-  };
-
-  const insertChunks = async (documentId: string, chunks: string[], embeddings: any[]) => {
-    const records = chunks.map((chunk, index) => ({
-      document_id: documentId,
-      content: chunk,
-      embeddings: embeddings[index].embeddings[0],
-      chunk_index: index
-    }));
-    const { error } = await supabase.from('scraped_content').insert(records);
-    if (error) throw error;
   };
 
   return (

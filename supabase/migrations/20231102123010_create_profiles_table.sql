@@ -46,4 +46,3 @@ alter publication supabase_realtime add table profiles;
 -- Grant necessary permissions
 grant usage on schema public to anon, authenticated, service_role;
 grant all on public.profiles to authenticated, service_role;
-grant select on public.profiles to anon;

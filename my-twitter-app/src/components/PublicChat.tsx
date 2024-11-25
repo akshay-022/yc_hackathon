@@ -1,1 +1,0 @@
-// Similar to Chat.tsx but with public access considerations 

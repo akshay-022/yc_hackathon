@@ -30,7 +30,7 @@ const router = createBrowserRouter([
   }
 ]);
 
-ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
+ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BackendProvider backendUrl={BACKEND_URL}>
       <RouterProvider router={router} />
