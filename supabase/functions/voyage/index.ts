@@ -28,21 +28,17 @@ function chunkText(text: string, size: number): string[] {
 console.log(`Function "voyage" up and running!`)
 
 // Function to insert document and chunks into Supabase
-async function insertDocumentAndChunks(texts: string[], userId: string, source: string) {
-  const summary = texts.join(' '); // Create a summary from the texts
+async function insertDocumentAndChunks(text: string, userId: string, source: string) {
+  const summary = text; // Create a summary from the texts
   const documentId = await insertDocument(userId, source, summary); // Insert document and get its ID
 
   const results = [];
-  const allTextChunks: string[] = []; // Array to hold all text chunks
 
-  for (const text of texts) {
-    const textChunks = chunkText(text, 5000);
-    allTextChunks.push(...textChunks); // Add all chunks to the array
-  }
-
+  const textChunks = chunkText(text, 5000);
+  
   // Send all text chunks at once
   const response = await client.embed({
-    input: allTextChunks, // Send all chunks in one request
+    input: textChunks, // Send all chunks in one request
     model: 'voyage-3-lite', // Use the model passed from the request
   });
 
@@ -50,10 +46,10 @@ async function insertDocumentAndChunks(texts: string[], userId: string, source: 
   const embeddings = response.data.map(item => item.embedding); // Get the embedding arrays
 
   // Store the chunk, its embedding, and its index
-  for (let i = 0; i < allTextChunks.length; i++) {
+  for (let i = 0; i < textChunks.length; i++) {
     results.push({
       document_id: documentId,
-      content: allTextChunks[i],
+      content: textChunks[i],
       embeddings: embeddings[i], // Use the extracted embeddings
       chunk_index: i,
     });
