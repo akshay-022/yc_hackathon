@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import SignIn from './components/SignIn';
 import SignUp from './components/SignUp';
+import LoginDesign from './components/LoginDesign';
 
 function App() {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -32,27 +33,27 @@ function App() {
   };
 
   return (
-    <div
-      className="flex flex-col items-center justify-center min-h-screen"
-      onMouseMove={handleMouseMove}
-      style={{
-        background: `radial-gradient(circle at ${gradientPosition.x}% ${gradientPosition.y}%, rgba(79, 70, 229, 0.8), rgba(236, 72, 153, 0.8) ${gradientSize}%)`,
-      }}
-    >
-      <div className="max-w-md w-full p-6 bg-black-secondary rounded-lg shadow-lg">
-        {isSignUp ? (
-          <SignUp onAuthSuccess={handleAuthSuccess} onSignUpSuccess={handleSignUpSuccess} />
-        ) : (
-          <SignIn onAuthSuccess={handleAuthSuccess} onSwitchToSignUp={toggleAuthMode} />
-        )}
+    <div className="flex w-full min-h-screen bg-black-primary">
+      {/* Left side - Mirror AI Design */}
+      <LoginDesign />
 
-        <div className="mt-6 text-center">
-          <button
-            onClick={toggleAuthMode}
-            className="text-indigo-600 hover:text-indigo-500 font-medium"
-          >
-            {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
-          </button>
+      {/* Right side - Auth Form */}
+      <div className="w-[40%] min-w-[500px] bg-black-secondary min-h-screen flex items-center justify-center p-12 border-l border-gray-800">
+        <div className="w-full max-w-[440px] space-y-8">
+          {isSignUp ? (
+            <SignUp onAuthSuccess={handleAuthSuccess} onSignUpSuccess={handleSignUpSuccess} />
+          ) : (
+            <SignIn onAuthSuccess={handleAuthSuccess} onSwitchToSignUp={toggleAuthMode} />
+          )}
+
+          <div className="mt-6 text-center">
+            <button
+              onClick={toggleAuthMode}
+              className="text-indigo-600 hover:text-indigo-500 font-medium"
+            >
+              {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
+            </button>
+          </div>
         </div>
       </div>
     </div>

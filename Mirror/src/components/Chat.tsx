@@ -2,14 +2,32 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { useBackend } from '../BackendContext';
 
-function Chat({ hasUserContent, username }: { hasUserContent: boolean, username: string }) {
-  const [message, setMessage] = useState('');
-  const [messages, setMessages] = useState<any[]>([]);
-  const [conversations, setConversations] = useState<any[]>([]);
+interface Message {
+  id: number;
+  content: string;
+  is_bot: boolean;
+  created_at: string;
+}
+
+interface Conversation {
+  id: number;
+  title: string;
+  created_at: string;
+}
+
+interface ChatProps {
+  hasUserContent: boolean;
+  username: string;
+}
+
+function Chat({ hasUserContent, username }: ChatProps) {
+  const [message, setMessage] = useState<string>('');
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversationId, setSelectedConversationId] = useState<number | null>(null);
-  const [isSending, setIsSending] = useState(false);
+  const [isSending, setIsSending] = useState<boolean>(false);
   const [userId, setUserId] = useState<string | null>(null);
-  const [isLoadingReply, setIsLoadingReply] = useState(false);
+  const [isLoadingReply, setIsLoadingReply] = useState<boolean>(false);
   const backendUrl = useBackend();
 
   useEffect(() => {
@@ -91,9 +109,8 @@ function Chat({ hasUserContent, username }: { hasUserContent: boolean, username:
       console.log('Sending message to backend API for processing...');
       setIsLoadingReply(true);
 
-      // Use Supabase Edge Function for processing
       const { data: responseData, error: responseError } = await supabase.functions.invoke('anthropic', {
-        body: { content: message},
+        body: { content: message },
       });
 
       if (responseError) throw responseError;
@@ -101,7 +118,6 @@ function Chat({ hasUserContent, username }: { hasUserContent: boolean, username:
       const botResponseContent = responseData.choices[0].message.content;
       console.log('Generated bot response:', botResponseContent);
 
-      // Insert the bot's response into the messages table
       const botMessage = {
         content: botResponseContent,
         conversation_id: selectedConversationId,
@@ -126,7 +142,6 @@ function Chat({ hasUserContent, username }: { hasUserContent: boolean, username:
   };
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    console.log('Key press detected:', e.key);
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
@@ -136,11 +151,9 @@ function Chat({ hasUserContent, username }: { hasUserContent: boolean, username:
   return (
     <div className="h-full flex flex-col bg-gray-900 rounded-lg overflow-hidden">
       <div className="flex h-full">
-        {/* Sidebar for conversations */}
         <div className="w-60 bg-gray-900 p-4 border-r border-gray-800 flex flex-col">
           <h3 className="text-white text-lg font-semibold mb-4">Conversations</h3>
           
-          {/* Conversation list with flex-1 to push button to bottom */}
           <div className="flex-1 overflow-y-auto mb-4">
             <ul className="space-y-2">
               {conversations.map((conversation) => (
@@ -164,7 +177,6 @@ function Chat({ hasUserContent, username }: { hasUserContent: boolean, username:
             </ul>
           </div>
 
-          {/* New Chat button at bottom */}
           <button
             onClick={() => setSelectedConversationId(null)}
             className="w-full py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
@@ -173,7 +185,6 @@ function Chat({ hasUserContent, username }: { hasUserContent: boolean, username:
           </button>
         </div>
 
-        {/* Chat window */}
         <div className="flex-1 flex flex-col p-4">
           <div className="text-center mb-4">
             <h2 className="text-2xl font-bold text-white">Your Mirror</h2>
@@ -188,9 +199,9 @@ function Chat({ hasUserContent, username }: { hasUserContent: boolean, username:
 
           <div className="flex-1 bg-gray-800 rounded-lg mb-4 overflow-hidden">
             <div className="h-full overflow-y-auto space-y-4 pr-2" style={{ maxHeight: '300px' }}>
-              {messages.map((msg, index) => (
+              {messages.map((msg) => (
                 <div 
-                  key={index} 
+                  key={msg.id} 
                   className={`flex ${msg.is_bot ? 'justify-start' : 'justify-end'}`}
                 >
                   <div 

@@ -8,37 +8,148 @@ import { useBackend } from '../BackendContext';
 import Chat from './Chat';
 import AddContent from './AddContent';
 
+interface AuthStatus {
+  twitter: boolean;
+  notion: boolean;
+}
+
 function Home() {
-  const [username, setUsername] = useState('User');
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [authStatus, setAuthStatus] = useState({
-    twitter: false,
-    notion: false
-  });
-  const [hasUserContent, setHasUserContent] = useState(false);
-  const [message, setMessage] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [publicUrl, setPublicUrl] = useState('');
-  const [showPublicInfo, setShowPublicInfo] = useState(false);
+  const [username, setUsername] = useState<string>('User');
+  const [isLoggingOut, setIsLoggingOut] = useState<boolean>(false);
+  const [authStatus, setAuthStatus] = useState<AuthStatus>({ twitter: false, notion: false });
+  const [message, setMessage] = useState<string>('');
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [publicUrl, setPublicUrl] = useState<string>('');
+  const [showPublicInfo, setShowPublicInfo] = useState<boolean>(false);
   const navigate = useNavigate();
   const backendUrl = useBackend();
+
+  const createProfile = async (user: any, metadata: any, session: any) => {
+    try {
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', user.id)
+        .single();
+
+      if (existingProfile) {
+        console.log('Profile already exists, skipping creation');
+        return;
+      }
+
+      const username = metadata.user_name || 
+                      metadata.preferred_username || 
+                      metadata.name || 
+                      user.email?.split('@')[0] || 
+                      `user_${user.id.slice(0, 8)}`;
+      
+      const email = user.email || `${username}@placeholder.com`;
+
+      const profileData = {
+        id: user.id,
+        username: username,
+        email: email,
+        updated_at: new Date().toISOString(),
+        twitter_username: metadata.user_name || null,
+        twitter_access_token: session?.provider_token || null,
+        twitter_refresh_token: session?.provider_refresh_token || null,
+        twitter_token_expires_at: session ? null : null
+      };
+
+      console.log('Creating new profile with data:', profileData);
+
+      const { error } = await supabase
+        .from('profiles')
+        .upsert(profileData, {
+          onConflict: 'id',
+          ignoreDuplicates: false,
+        });
+
+      if (error) throw error;
+      console.log('Profile created successfully');
+    } catch (error) {
+      console.error('Error in profile creation:', error);
+    }
+  };
 
   useEffect(() => {
     const checkAuthStatus = async () => {
       try {
+        const { data: { session } } = await supabase.auth.getSession();
         const { data: { user } } = await supabase.auth.getUser();
+        console.log('Checking auth status:', user);
+        console.log('Session:', session);
+        
         if (!user) {
           navigate('/');
           return;
         }
 
+        const isNotionToken = session.provider_token.startsWith('ntn_');
+        const isTwitterToken = /^\d+-/.test(session.provider_token);
+
+        console.log('Is Notion Token:', isNotionToken);
+        console.log('Is Twitter Token:', isTwitterToken);
+
         if (user.identities) {
           const status = {
-            twitter: user.identities.some(id => id.provider === 'twitter'),
-            notion: user.identities.some(id => id.provider === 'notion')
+            twitter: user.identities.some((id: any) => id.provider === 'twitter'),
+            notion: user.identities.some((id: any) => id.provider === 'notion')
           };
+          console.log('Auth status:', status);
           setAuthStatus(status);
+
+          if (isTwitterToken) {
+            await createProfile(user, user.user_metadata, session);
+            
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('twitter_username')
+              .eq('id', user.id)
+              .single();
+
+            const twitterUsername = user.user_metadata?.user_name || 
+                                  user.user_metadata?.preferred_username;
+
+            if (twitterUsername) {
+              const { error: updateError } = await supabase
+                .from('profiles')
+                .update({ 
+                  twitter_username: twitterUsername,
+                  twitter_access_token: session?.provider_token || null,
+                  twitter_refresh_token: session?.provider_refresh_token || null,
+                  twitter_token_expires_at: session?.expires_at ? null : null,
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', user.id);
+
+              if (updateError) console.error('Error updating Twitter username and token:', updateError);
+              else console.log('Twitter username and token updated successfully:', twitterUsername);
+            }
+          }
+
+          if (isNotionToken) {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', user.id)
+              .single();
+
+            if (profile) {
+              const { error: updateError } = await supabase
+                .from('profiles')
+                .update({ 
+                  notion_access_token: session?.provider_token || null,
+                  notion_refresh_token: session?.provider_refresh_token || null,
+                  notion_token_expires_at: session?.expires_at ? null : null,
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', user.id);
+
+              if (updateError) console.error('Error updating Notion tokens:', updateError);
+              else console.log('Notion tokens updated successfully');
+            }
+          }
         }
 
         const { data: profile } = await supabase
@@ -51,43 +162,26 @@ function Home() {
           setUsername(profile.username);
         }
 
-        const response = await fetch(`${backendUrl}/api/user-documents/${user.id}`);
-        const result = await response.json();
-        setHasUserContent(result.documents.length > 0);
       } catch (error) {
         console.error('Error fetching user:', error);
         navigate('/');
-      } finally {
-        setIsLoading(false);
       }
     };
 
     checkAuthStatus();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: subscription } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT' || !session) {
         navigate('/');
       }
     });
 
     return () => {
-      subscription?.unsubscribe();
+      if (subscription && typeof subscription.unsubscribe === 'function') {
+        subscription.unsubscribe();
+      }
     };
   }, [navigate]);
-
-  const handleContentAdded = () => {
-    setHasUserContent(true);
-  };
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-black-primary text-white flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-xl">Loading...</p>
-        </div>
-      </div>
-    );
-  }
 
   const handleLogout = async () => {
     try {
@@ -103,36 +197,41 @@ function Home() {
   };
 
   const handleTwitterAuth = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'twitter',
-      options: {
-        redirectTo: `${window.location.origin}/home`
-      }
-    });
-    if (error) console.error('Twitter authentication error:', error.message);
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'twitter',
+        options: {
+          redirectTo: `${window.location.origin}/home`
+        }
+      });
+      if (error) throw error;
+    } catch (error) {
+      console.error('Twitter authentication error:', error.message);
+    }
   };
 
   const handleNotionAuth = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'notion',
-      options: {
-        redirectTo: `${window.location.origin}/home`
-      }
-    });
-    if (error) console.error('Notion authentication error:', error.message);
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'notion',
+        options: {
+          redirectTo: `${window.location.origin}/home`
+        }
+      });
+      if (error) throw error;
+      
+    } catch (error) {
+      console.error('Notion authentication error:', error.message);
+    }
   };
 
   const handleNotionSync = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error('No access token found');
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('No user found');
 
-      const response = await fetch('http://localhost:8000/sync/notion', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ access_token: session.access_token }),
+      const response = await supabase.functions.invoke('notion', {
+        body: { userId: userId },
       });
 
       if (!response.ok) throw new Error('Failed to sync Notion content');
@@ -239,7 +338,7 @@ function Home() {
         } gap-4`}>
           {authStatus.twitter && (
             <div className="h-full bg-black-secondary rounded-lg shadow-lg p-4 flex flex-col">
-              <AddContent onContentAdded={handleContentAdded} />
+              <AddContent />
             </div>
           )}
 
@@ -363,7 +462,7 @@ function Home() {
               <div className="flex-1 bg-black-secondary rounded-lg shadow-lg p-4 min-h-0 flex flex-col">
                 <h2 className="text-2xl font-bold mb-4">Mirror Chat</h2>
                 <div className="flex-1 min-h-0">
-                  <Chat hasUserContent={hasUserContent} username={username} />
+                  <Chat hasUserContent={true} username={username} />
                 </div>
               </div>
             )}

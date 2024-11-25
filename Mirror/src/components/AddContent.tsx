@@ -15,12 +15,16 @@ function AddContent() {
       setUserId(user ? user.id : null);
 
       if (user) {
-        const response = await fetch(`${backendUrl}/api/user-documents/${user.id}`);
-        const result = await response.json();
-        if (response.ok) {
-          setDocuments(result.documents);
+        // Fetch documents directly from Supabase
+        const { data, error } = await supabase
+          .from('documents')
+          .select('*') // Select all fields or specify the fields you need
+          .eq('user_id', user.id); // Filter by user ID
+
+        if (error) {
+          console.error('Error fetching documents:', error.message);
         } else {
-          console.error('Error fetching documents:', result.detail);
+          setDocuments(data); // Set the documents state with the fetched data
         }
       }
     } catch (error) {
@@ -43,15 +47,36 @@ function AddContent() {
         body: { content: content, userId: userId, source: 'user' },
       });
 
-      const result = await response.json();
+      // Log the response to check its structure
+      console.log('Response from Supabase function:', response);
 
-      if (response.ok) {
-        // Clear the content input
+      // Check if the response has a 'data' property
+      if (response.data) {
+        // Use the data directly if it's already in JSON format
+        const document = response.data.document; // Access the document directly
+        // Add the new document to the documents list
+        setDocuments((prevDocuments) => [...prevDocuments, document]);
         setContent('');
-        // Refresh the documents list
-        fetchUserDocuments(); // Fetch documents again to include the new one
       } else {
-        console.error('Error:', result.error);
+        console.error('Error:', response.error || 'Unknown error');
+      }
+    } catch (error) {
+      console.error('Error:', error);
+    }
+  };
+
+  const handleRemoveDocument = async (documentId: string) => {
+    try {
+      const { error } = await supabase
+        .from('documents')
+        .delete()
+        .eq('id', documentId); // Specify the document to delete
+
+      if (error) {
+        console.error('Error removing document:', error.message);
+      } else {
+        // Update the documents state to remove the deleted document
+        setDocuments((prevDocuments) => prevDocuments.filter(doc => doc.id !== documentId));
       }
     } catch (error) {
       console.error('Error:', error);
@@ -79,8 +104,19 @@ function AddContent() {
         <h3 className="text-lg font-semibold text-white mb-2">Your Documents</h3>
         <ul className="list-disc list-inside text-white">
           {documents.map((doc, index) => (
-            <li key={index} className="mb-1">
-              {doc.summary} {/* Adjust this based on the actual document structure */}
+            <li key={index} className="mb-1 flex justify-between items-center">
+              <div>
+                <span>{doc.summary}</span> {/* Adjust this based on the actual document structure */}
+                <span className="text-gray-400 text-sm ml-2">
+                  {new Date(doc.created_at).toLocaleDateString()} {/* Format the date */}
+                </span>
+              </div>
+              <button
+                onClick={() => handleRemoveDocument(doc.id)}
+                className="text-red-500 hover:text-red-700 ml-4"
+              >
+                Remove
+              </button>
             </li>
           ))}
         </ul>
