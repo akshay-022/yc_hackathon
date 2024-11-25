@@ -4,9 +4,9 @@ import { createClient } from 'npm:@supabase/supabase-js';
 import { corsHeaders } from '../_shared/cors.ts'
 
 // Initialize Notion and Supabase clients
-const notion = new Client({
-  auth: Deno.env.get('NOTION_TOKEN')!,
-});
+// const notion = new Client({
+//   auth: Deno.env.get('NOTION_TOKEN')!,
+// });
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -22,76 +22,6 @@ interface NotionPage {
   };
 }
 
-async function getAllPagesAndDatabases(): Promise<string[]> {
-  try {
-    const pages: string[] = [];
-    let nextCursor: string | undefined;
-
-    while (true) {
-      const response = await notion.search({
-        filter: {
-          property: 'object',
-          value: 'page'
-        },
-        start_cursor: nextCursor,
-        page_size: 100,
-      });
-
-      for (const page of response.results) {
-        const pageText = await extractTextFromBlocks(page.id);
-        if (pageText.trim().length > 0) {
-          pages.push(pageText);
-        }
-      }
-
-      if (!response.has_more) break;
-      nextCursor = response.next_cursor;
-    }
-
-    return pages;
-  } catch (error) {
-    console.error('Error fetching Notion pages:', error);
-    throw error;
-  }
-}
-
-async function extractTextFromBlocks(blockId: string): Promise<string> {
-  const textContent: string[] = [];
-  let nextCursor: string | undefined;
-
-  while (true) {
-    const response = await notion.blocks.children.list({
-      block_id: blockId,
-      start_cursor: nextCursor,
-      page_size: 100,
-    });
-
-    for (const block of response.results) {
-      const blockType = block.type;
-      if (['paragraph', 'heading_1', 'heading_2', 'heading_3', 'bulleted_list_item', 'numbered_list_item'].includes(blockType)) {
-        const richText = block[blockType]?.rich_text || [];
-        const text = richText.map((t: any) => t.plain_text || '').join(' ');
-        if (text) {
-          textContent.push(text);
-        }
-      }
-
-      // Recursively get text from child blocks
-      if (block.has_children) {
-        const childText = await extractTextFromBlocks(block.id);
-        if (childText) {
-          textContent.push(childText);
-        }
-      }
-    }
-
-    if (!response.has_more) break;
-    nextCursor = response.next_cursor;
-  }
-
-  return textContent.join(' ');
-}
-
 Deno.serve(async (req) => {
   const headers = {
     ...corsHeaders,
@@ -105,35 +35,98 @@ Deno.serve(async (req) => {
   try {
     const { user_id } = await req.json();
     if (!user_id) {
-      throw new Error('Missing user_id');
+      throw new Error('Missing required parameter: user_id');
     }
 
-    // Get the user's Notion token from Supabase
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    );
-
+    // Get the user's Notion access token from profiles
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('notion_access_token')
       .eq('id', user_id)
       .single();
 
-    if (profileError || !profile?.notion_access_token) {
-      console.error('Profile error:', profileError);
-      return new Response(
-        JSON.stringify({ 
-          error: 'Notion token not found. Please reconnect your Notion account.' 
-        }),
-        { headers, status: 400 }
-      );
+    if (profileError) {
+      throw new Error(`Failed to get profile: ${profileError.message}`);
     }
 
-    // Initialize Notion client with user's token
+    if (!profile?.notion_access_token) {
+      throw new Error('Notion access token not found. Please reconnect your Notion account.');
+    }
+
+    // Initialize Notion client with the user's access token
     const notion = new Client({
-      auth: profile.notion_access_token,
+      auth: profile.notion_access_token
     });
+
+    async function getAllPagesAndDatabases(): Promise<string[]> {
+      try {
+        const pages: string[] = [];
+        let nextCursor: string | undefined;
+
+        while (true) {
+          const response = await notion.search({
+            filter: {
+              property: 'object',
+              value: 'page'
+            },
+            start_cursor: nextCursor,
+            page_size: 100,
+          });
+
+          for (const page of response.results) {
+            const pageText = await extractTextFromBlocks(page.id);
+            if (pageText.trim().length > 0) {
+              pages.push(pageText);
+            }
+          }
+
+          if (!response.has_more) break;
+          nextCursor = response.next_cursor;
+        }
+
+        return pages;
+      } catch (error) {
+        console.error('Error fetching Notion pages:', error);
+        throw error;
+      }
+    }
+
+    async function extractTextFromBlocks(blockId: string): Promise<string> {
+      const textContent: string[] = [];
+      let nextCursor: string | undefined;
+
+      while (true) {
+        const response = await notion.blocks.children.list({
+          block_id: blockId,
+          start_cursor: nextCursor,
+          page_size: 100,
+        });
+
+        for (const block of response.results) {
+          const blockType = block.type;
+          if (['paragraph', 'heading_1', 'heading_2', 'heading_3', 'bulleted_list_item', 'numbered_list_item'].includes(blockType)) {
+            const richText = block[blockType]?.rich_text || [];
+            const text = richText.map((t: any) => t.plain_text || '').join(' ');
+            if (text) {
+              textContent.push(text);
+            }
+          }
+
+          // Recursively get text from child blocks
+          if (block.has_children) {
+            const childText = await extractTextFromBlocks(block.id);
+            if (childText) {
+              textContent.push(childText);
+            }
+          }
+        }
+
+        if (!response.has_more) break;
+        nextCursor = response.next_cursor;
+      }
+
+      return textContent.join(' ');
+    }
 
     console.log('Fetching Notion pages...');
     const pages = await getAllPagesAndDatabases();
