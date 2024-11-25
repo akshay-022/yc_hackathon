@@ -442,7 +442,7 @@ function Home() {
                   </button>
                   
                   {showPublicInfo && publicUrl && (
-                    <div className="mt-2 p-2 bg-gray-800 rounded-md space-y-2">
+                    <div className="mt-2 p-2 bg-gray-800 rounded-md space-y-2 max-h-[300px] overflow-auto">
                       <div>
                         <p className="text-sm text-gray-400 mb-1">Public Chat URL:</p>
                         <input
