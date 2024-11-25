@@ -198,7 +198,7 @@ function Home() {
 
   const handleTwitterAuth = async () => {
     try {
-      const { data, error } = await supabase.auth.signInWithOAuth({
+      const { data, error } = await supabase.auth.linkIdentity({
         provider: 'twitter',
         options: {
           redirectTo: `${window.location.origin}/home`
@@ -206,22 +206,21 @@ function Home() {
       });
       if (error) throw error;
     } catch (error) {
-      console.error('Twitter authentication error:', error.message);
+      console.error('Twitter identity linking error:', error.message);
     }
   };
 
   const handleNotionAuth = async () => {
     try {
-      const { data, error } = await supabase.auth.signInWithOAuth({
+      const { data, error } = await supabase.auth.linkIdentity({
         provider: 'notion',
         options: {
           redirectTo: `${window.location.origin}/home`
         }
       });
       if (error) throw error;
-      
     } catch (error) {
-      console.error('Notion authentication error:', error.message);
+      console.error('Notion identity linking error:', error.message);
     }
   };
 
