@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import { useBackend } from '../BackendContext';
+import { FaTrash } from 'react-icons/fa';
 
 interface Message {
   id: number;
@@ -28,7 +29,9 @@ function Chat({ hasUserContent, username }: ChatProps) {
   const [isSending, setIsSending] = useState<boolean>(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [isLoadingReply, setIsLoadingReply] = useState<boolean>(false);
+  const [newTitle, setNewTitle] = useState<string>('');
   const backendUrl = useBackend();
+  const inputRef = useRef<HTMLInputElement | null>(null); // Reference for the input field
 
   useEffect(() => {
     const fetchUserId = async () => {
@@ -44,7 +47,9 @@ function Chat({ hasUserContent, username }: ChatProps) {
       try {
         const { data, error } = await supabase
           .from('conversations')
-          .select('*');
+          .select('*')
+          .eq('source_user_id', userId)
+          .eq('target_user_id', userId);
         if (error) throw error;
         setConversations(data);
       } catch (error) {
@@ -80,58 +85,56 @@ function Chat({ hasUserContent, username }: ChatProps) {
 
     try {
       setIsSending(true);
-
-      if (!selectedConversationId) {
-        console.log('No conversation ID. Creating a new conversation...');
-        const { data: conversationData, error: conversationError } = await supabase
-          .from('conversations')
-          .insert({ user_id: userId })
-          .select()
-          .single();
-        if (conversationError) throw conversationError;
-
-        setConversations((prevConversations) => [...prevConversations, conversationData]);
-        setSelectedConversationId(conversationData.id);
-        console.log('New conversation ID:', conversationData.id);
-      }
-
-      const { data: messageData, error: messageError } = await supabase
-        .from('messages')
-        .insert([{ content: message, conversation_id: selectedConversationId, is_bot: false }])
-        .select();
-      if (messageError) throw messageError;
-
-      console.log('Message sent successfully:', messageData);
-
-      setMessages((prevMessages) => [...prevMessages, ...messageData]);
-      setMessage('');
-
-      console.log('Sending message to backend API for processing...');
       setIsLoadingReply(true);
 
+      // Add the user's message to the chat window
+      const userMessage = {
+        id: Date.now(), // Temporary ID for rendering
+        content: message,
+        is_bot: false,
+        created_at: new Date().toISOString()
+      };
+      setMessages((prevMessages) => [...prevMessages, userMessage]);
+      setMessage('');
+
+      // Use Supabase Edge Function for processing
       const { data: responseData, error: responseError } = await supabase.functions.invoke('anthropic', {
-        body: { content: message },
+        body: { content: message, sourceUserId: userId, targetUserId: userId, conversationId: selectedConversationId },
       });
 
       if (responseError) throw responseError;
 
-      const botResponseContent = responseData.choices[0].message.content;
+      const botResponseContent = responseData.botResponseContent;
+      const newConversationId = responseData.conversationId;
+      const userMessageId = responseData.userMessageId;
+      const botMessageId = responseData.botMessageId;
       console.log('Generated bot response:', botResponseContent);
 
+      // Update the conversation ID if a new one was created
+      if (!selectedConversationId) {
+        setSelectedConversationId(newConversationId);
+        setConversations((prevConversations) => [
+          ...prevConversations,
+          { id: newConversationId, title: `Conversation ${newConversationId}`, created_at: new Date().toISOString() }
+        ]);
+      }
+      // Update the last message with the correct ID
+      setMessages((prevMessages) => {
+        const updatedMessages = [...prevMessages];
+        updatedMessages[updatedMessages.length - 1].id = userMessageId;
+        return updatedMessages;
+      });
+
+      // Insert the bot's response into the messages table
       const botMessage = {
+        id: botMessageId, // Use the ID from the response
         content: botResponseContent,
-        conversation_id: selectedConversationId,
-        is_bot: true
+        conversation_id: newConversationId,
+        is_bot: true,
+        created_at: new Date().toISOString()
       };
 
-      const botResponse = await supabase
-        .from('messages')
-        .insert([botMessage])
-        .select()
-        .single();
-      console.log('Database response:', botResponse);
-
-      setMessages((prevMessages) => [...prevMessages, { ...botMessage, created_at: new Date().toISOString() }]);
+      setMessages((prevMessages) => [...prevMessages, botMessage]);
 
     } catch (error) {
       console.error('Error sending message:', error);
@@ -148,6 +151,67 @@ function Chat({ hasUserContent, username }: ChatProps) {
     }
   };
 
+  const handleNewConversation = () => {
+    setSelectedConversationId(null);
+    setMessages([]);
+  };
+
+  const handleRenameConversation = async (e: React.KeyboardEvent<HTMLInputElement>, conversationId: number) => {
+    
+    if (e.key === 'Enter' && newTitle.trim() !== '') {
+      try {
+        const { error } = await supabase
+          .from('conversations')
+          .update({ title: newTitle })
+          .eq('id', conversationId)
+          .eq('sourceUserId', userId)
+          .eq('targetUserId', userId);
+        if (error) throw error;
+
+        // Update local state
+        setConversations((prev) =>
+          prev.map((conv) => (conv.id === conversationId ? { ...conv, title: newTitle } : conv))
+        );
+        setNewTitle(''); // Clear the input after renaming
+      } catch (error) {
+        console.error('Error renaming conversation:', error);
+      }
+    }
+  };
+
+  const handleDeleteConversation = async (conversationId: number) => {
+    try {
+      const { error } = await supabase
+        .from('conversations')
+        .delete()
+        .eq('id', conversationId);
+      if (error) throw error;
+
+      // Update local state
+      setConversations((prev) => prev.filter((conv) => conv.id !== conversationId));
+      if (selectedConversationId === conversationId) {
+        setSelectedConversationId(null); // Deselect if the deleted conversation was selected
+      }
+    } catch (error) {
+      console.error('Error deleting conversation:', error);
+    }
+  };
+
+  // Handle click outside to deselect conversation
+  const handleClickOutside = (event: MouseEvent) => {
+    if (inputRef.current && !inputRef.current.contains(event.target as Node)) {
+      setSelectedConversationId(null);
+      setNewTitle(''); // Clear the title when deselected
+    }
+  };
+
+  useEffect(() => {
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
   return (
     <div className="h-full flex flex-col bg-gray-900 rounded-lg overflow-hidden">
       <div className="flex h-full">
@@ -159,26 +223,48 @@ function Chat({ hasUserContent, username }: ChatProps) {
               {conversations.map((conversation) => (
                 <li
                   key={conversation.id}
-                  className={`p-3 rounded-md cursor-pointer transition-colors ${
+                  className={`p-3 rounded-md cursor-pointer transition-colors relative ${
                     conversation.id === selectedConversationId 
                       ? 'bg-blue-600 text-white' 
                       : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
                   }`}
-                  onClick={() => setSelectedConversationId(conversation.id)}
+                  onClick={() => {
+                    setSelectedConversationId(conversation.id);
+                    setNewTitle(conversation.title); // Set the title for editing
+                  }}
                 >
                   <div className="truncate">
-                    {conversation.title || `Conversation ${conversation.id}`}
+                    <input
+                      ref={inputRef} // Attach the ref to the input
+                      type="text"
+                      value={conversation.id === selectedConversationId ? newTitle : conversation.title}
+                      onChange={(e) => setNewTitle(e.target.value)}
+                      onKeyDown={(e) => handleRenameConversation(e, conversation.id)}
+                      className={`bg-transparent border-none text-white focus:outline-none ${conversation.id === selectedConversationId ? 'block' : 'hidden'}`}
+                    />
+                    <span className={`text-lg ${conversation.id === selectedConversationId ? 'hidden' : 'block'}`}>
+                      {conversation.title || `Conversation ${conversation.id}`}
+                    </span>
                   </div>
                   <div className="text-xs text-gray-400 mt-1">
                     {new Date(conversation.created_at).toLocaleDateString()}
                   </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation(); // Prevent triggering the onClick of the list item
+                      handleDeleteConversation(conversation.id);
+                    }}
+                    className="absolute top-2 right-2 text-red-500 hover:text-red-700"
+                  >
+                    <FaTrash />
+                  </button>
                 </li>
               ))}
             </ul>
           </div>
 
           <button
-            onClick={() => setSelectedConversationId(null)}
+            onClick={handleNewConversation}
             className="w-full py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
           >
             New Chat
@@ -220,7 +306,7 @@ function Chat({ hasUserContent, username }: ChatProps) {
               ))}
               {isLoadingReply && (
                 <div className="flex justify-center">
-                  <div className="text-white">Loading...</div>
+                  <div className="text-white">Thinking...</div>
                 </div>
               )}
             </div>
@@ -257,4 +343,4 @@ function Chat({ hasUserContent, username }: ChatProps) {
   );
 }
 
-export default Chat; 
+export default Chat;

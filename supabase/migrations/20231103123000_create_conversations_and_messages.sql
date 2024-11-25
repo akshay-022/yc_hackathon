@@ -2,7 +2,7 @@
 
 -- Create conversations table
 create table public.conversations (
-  id bigint generated always as identity primary key,
+  id bigint generated always as identity primary key ,
   title text not null default 'New Conversation',
   source_user_id uuid references auth.users(id) on delete set null,
   target_user_id uuid not null references auth.users(id) on delete cascade,

@@ -14,7 +14,6 @@ function PublicChat() {
 
   useEffect(() => {
     let mounted = true;
-    let messageSubscription = null;
 
     async function initializeChat() {
       try {
@@ -29,28 +28,17 @@ function PublicChat() {
           setUsername(profile.username);
         }
 
-        // Get or create public conversation
-        const { data: existingConv } = await supabase
-          .from('conversations')
-          .select('*')
-          .eq('user_id', userId)
-          .single();
-
-        let convId;
-        if (existingConv) {
-          convId = existingConv.id;
-        } else {
-          const { data: newConv } = await supabase
-            .from('conversations')
-            .insert([{ 
-              user_id: userId, 
-              title: `Public Chat with ${profile?.username || 'User'}`
-            }])
-            .select()
-            .single();
+       
+        const { data: newConv } = await supabase
+        .from('conversations')
+        .insert([{ 
+            target_user_id: userId, 
+            title: `Public Chat with ${profile?.username || 'User'}`
+        }])
+        .select()
+        .single();
           
           convId = newConv?.id;
-        }
 
         if (mounted && convId) {
           setConversationId(convId);
@@ -65,21 +53,6 @@ function PublicChat() {
           if (mounted && existingMessages) {
             setMessages(existingMessages);
           }
-
-          // Subscribe to new messages
-          messageSubscription = supabase
-            .channel(`public_messages:${convId}`)
-            .on('postgres_changes', {
-              event: 'INSERT',
-              schema: 'public',
-              table: 'messages',
-              filter: `conversation_id=eq.${convId}`
-            }, payload => {
-              if (mounted) {
-                setMessages(current => [...current, payload.new]);
-              }
-            })
-            .subscribe();
         }
       } catch (error) {
         console.error('Error initializing chat:', error);
@@ -92,13 +65,28 @@ function PublicChat() {
 
     initializeChat();
 
-    return () => {
-      mounted = false;
-      if (messageSubscription) {
-        messageSubscription.unsubscribe();
+    const handleBeforeUnload = async () => {
+      if (conversationId) {
+        try {
+          await supabase
+            .from('conversations')
+            .delete()
+            .eq('id', conversationId)
+            .eq('target_user_id', userId);
+        } catch (error) {
+          console.error('Error deleting conversation:', error);
+        }
       }
     };
-  }, [userId]);
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      mounted = false;
+      handleBeforeUnload();
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [userId, conversationId]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -115,19 +103,19 @@ function PublicChat() {
         content: message,
         conversation_id: conversationId,
         is_bot: false,
-        created_at: new Date().toISOString() // Add a timestamp for consistency
+        created_at: new Date().toISOString()
       };
       setMessages((prevMessages) => [...prevMessages, userMessage]);
-      setMessage(''); // Clear the input box
+      setMessage('');
 
       // Use Supabase Edge Function for processing
       const { data: responseData, error: responseError } = await supabase.functions.invoke('anthropic', {
-        body: { content: message},
+        body: { content: message, sourceUserId: null, targetUserId: userId, conversationId },
       });
 
       if (responseError) throw responseError;
 
-      const botResponseContent = responseData.choices[0].message.content;
+      const botResponseContent = responseData.botResponseContent;
       console.log('Generated bot response:', botResponseContent);
 
       // Insert the bot's response into the messages table
