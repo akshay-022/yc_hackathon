@@ -8,35 +8,39 @@ import { useBackend } from '../BackendContext';
 import Chat from './Chat';
 import AddContent from './AddContent';
 
-interface AuthStatus {
-  twitter: boolean;
-  notion: boolean;
-}
-
 function Home() {
-  const [username, setUsername] = useState<string>('User');
-  const [isLoggingOut, setIsLoggingOut] = useState<boolean>(false);
-  const [authStatus, setAuthStatus] = useState<AuthStatus>({ twitter: false, notion: false });
-  const [message, setMessage] = useState<string>('');
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-  const [publicUrl, setPublicUrl] = useState<string>('');
-  const [showPublicInfo, setShowPublicInfo] = useState<boolean>(false);
+  const [username, setUsername] = useState('User');
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [authStatus, setAuthStatus] = useState({
+    twitter: false,
+    notion: false
+  });
+  const [hasUserContent, setHasUserContent] = useState(false);
+  const [message, setMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [copyStatus, setCopyStatus] = useState('');
+  const [publicUrl, setPublicUrl] = useState('');
+  const [showPublicInfo, setShowPublicInfo] = useState(false);
   const navigate = useNavigate();
   const backendUrl = useBackend();
 
-  const createProfile = async (user: any, metadata: any, session: any) => {
+  const createProfile = async (user, metadata, session) => {
     try {
+      // First check if profile exists
       const { data: existingProfile } = await supabase
         .from('profiles')
         .select('id')
         .eq('id', user.id)
         .single();
 
+      // If profile exists, skip creation
       if (existingProfile) {
         console.log('Profile already exists, skipping creation');
         return;
       }
 
+      // Continue with profile creation only for new users
       const username = metadata.user_name || 
                       metadata.preferred_username || 
                       metadata.name || 
@@ -53,7 +57,9 @@ function Home() {
         twitter_username: metadata.user_name || null,
         twitter_access_token: session?.provider_token || null,
         twitter_refresh_token: session?.provider_refresh_token || null,
-        twitter_token_expires_at: session ? null : null
+        twitter_token_expires_at: session
+          ? null
+          : null
       };
 
       console.log('Creating new profile with data:', profileData);
@@ -73,6 +79,7 @@ function Home() {
   };
 
   useEffect(() => {
+    // Check if user is authenticated and fetch profile
     const checkAuthStatus = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -86,22 +93,25 @@ function Home() {
         }
 
         const isNotionToken = session.provider_token.startsWith('ntn_');
-        const isTwitterToken = /^\d+-/.test(session.provider_token);
+        const isTwitterToken = /^\d+-/.test(session.provider_token); // Matches number followed by hyphen
 
         console.log('Is Notion Token:', isNotionToken);
         console.log('Is Twitter Token:', isTwitterToken);
 
+        // Check which providers are connected
         if (user.identities) {
           const status = {
-            twitter: user.identities.some((id: any) => id.provider === 'twitter'),
-            notion: user.identities.some((id: any) => id.provider === 'notion')
+            twitter: user.identities.some(id => id.provider === 'twitter'),
+            notion: user.identities.some(id => id.provider === 'notion')
           };
           console.log('Auth status:', status);
           setAuthStatus(status);
 
+          // If Twitter is connected, ensure profile exists
           if (isTwitterToken) {
             await createProfile(user, user.user_metadata, session);
             
+            // Check and update Twitter username if missing
             const { data: profile } = await supabase
               .from('profiles')
               .select('twitter_username')
@@ -118,7 +128,9 @@ function Home() {
                   twitter_username: twitterUsername,
                   twitter_access_token: session?.provider_token || null,
                   twitter_refresh_token: session?.provider_refresh_token || null,
-                  twitter_token_expires_at: session?.expires_at ? null : null,
+                  twitter_token_expires_at: session?.expires_at 
+                    ? null
+                    : null,
                   updated_at: new Date().toISOString()
                 })
                 .eq('id', user.id);
@@ -126,9 +138,12 @@ function Home() {
               if (updateError) console.error('Error updating Twitter username and token:', updateError);
               else console.log('Twitter username and token updated successfully:', twitterUsername);
             }
+            
           }
 
+          // If Notion is connected
           if (isNotionToken) {
+            // Get user profile
             const { data: profile } = await supabase
               .from('profiles')
               .select('*')
@@ -141,7 +156,9 @@ function Home() {
                 .update({ 
                   notion_access_token: session?.provider_token || null,
                   notion_refresh_token: session?.provider_refresh_token || null,
-                  notion_token_expires_at: session?.expires_at ? null : null,
+                  notion_token_expires_at: session?.expires_at 
+                    ? null
+                    : null,
                   updated_at: new Date().toISOString()
                 })
                 .eq('id', user.id);
@@ -162,26 +179,46 @@ function Home() {
           setUsername(profile.username);
         }
 
+        // Check if user has any content
+        const response = await fetch(`${backendUrl}/api/user-documents/${user.id}`);
+        const result = await response.json();
+        setHasUserContent(result.documents.length > 0);
       } catch (error) {
         console.error('Error fetching user:', error);
         navigate('/');
+      } finally {
+        setIsLoading(false);
       }
     };
 
     checkAuthStatus();
 
-    const { data: subscription } = supabase.auth.onAuthStateChange((event, session) => {
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT' || !session) {
         navigate('/');
       }
     });
 
     return () => {
-      if (subscription && typeof subscription.unsubscribe === 'function') {
-        subscription.unsubscribe();
-      }
+      subscription?.unsubscribe();
     };
   }, [navigate]);
+
+  const handleContentAdded = () => {
+    setHasUserContent(true);
+  };
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-black-primary text-white flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-xl">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   const handleLogout = async () => {
     try {
@@ -198,7 +235,7 @@ function Home() {
 
   const handleTwitterAuth = async () => {
     try {
-      const { data, error } = await supabase.auth.linkIdentity({
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'twitter',
         options: {
           redirectTo: `${window.location.origin}/home`
@@ -206,21 +243,22 @@ function Home() {
       });
       if (error) throw error;
     } catch (error) {
-      console.error('Twitter identity linking error:', error.message);
+      console.error('Twitter authentication error:', error.message);
     }
   };
 
   const handleNotionAuth = async () => {
     try {
-      const { data, error } = await supabase.auth.linkIdentity({
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'notion',
         options: {
           redirectTo: `${window.location.origin}/home`
         }
       });
       if (error) throw error;
+      
     } catch (error) {
-      console.error('Notion identity linking error:', error.message);
+      console.error('Notion authentication error:', error.message);
     }
   };
 
@@ -229,16 +267,35 @@ function Home() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No user found');
 
-      const response = await supabase.functions.invoke('notion', {
-        body: { userId: userId },
+      // First sync with Notion
+      const { data: notionData, error: notionError } = await supabase.functions.invoke('notion', {
+        body: {
+          database_id: 'tznrpdmwzpuispggvpdk',
+          user_id: user.id
+        }
       });
 
-      if (!response.ok) throw new Error('Failed to sync Notion content');
+      if (notionError) throw notionError;
 
-      const data = await response.json();
-      console.log('Notion sync successful:', data);
+      // Then process each result with Voyage
+      const { data: voyageData, error: voyageError } = await supabase.functions.invoke('voyage', {
+        body: {
+          content: notionData.results.map((result: any) => result.content),
+          userId: user.id,
+          source: 'notion'
+        }
+      });
+
+      if (voyageError) throw voyageError;
+
+      console.log('Notion sync and processing successful:', {
+        notion: notionData,
+        voyage: voyageData
+      });
+      // Optionally add a success toast/notification here
     } catch (error) {
       console.error('Error syncing Notion content:', error);
+      // Add error feedback to UI here
     }
   };
 
@@ -250,28 +307,47 @@ function Home() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No user found');
 
-      const response = await fetch('http://localhost:8000/api/process-content', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      // First process the content (handles YouTube and web scraping)
+      const { data: processedData, error: processError } = await supabase.functions.invoke('process-content', {
+        body: {
           text: message,
           user_id: user.id
-        }),
+        }
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to process content');
-      }
+      if (processError) throw processError;
 
-      const data = await response.json();
-      console.log('Content processed:', data);
+      // Then send to Voyage AI for embeddings
+      const { data: voyageData, error: voyageError } = await supabase.functions.invoke('voyage', {
+        body: {
+          content: [processedData.processedText],
+          userId: user.id,
+          source: 'user-input'
+        }
+      });
+
+      if (voyageError) throw voyageError;
+
+      // Finally, get AI response using Anthropic
+      const { data: aiResponse, error: aiError } = await supabase.functions.invoke('anthropic', {
+        body: {
+          content: processedData.processedText
+        }
+      });
+
+      if (aiError) throw aiError;
+
+      console.log('Content processed:', {
+        processed: processedData,
+        voyage: voyageData,
+        ai: aiResponse
+      });
       
       setMessage('');
       
     } catch (error) {
       console.error('Error processing content:', error);
+      // Add error feedback to UI here
     } finally {
       setIsSubmitting(false);
     }
@@ -292,6 +368,7 @@ function Home() {
       console.error('Error generating public link:', error);
     }
   };
+
 
   const ConnectedBadge = () => (
     <div className="flex items-center justify-center bg-green-500/10 border border-green-500/20 rounded-full w-8 h-8">
@@ -319,6 +396,7 @@ function Home() {
 
   return (
     <div className="h-screen bg-black-primary text-white">
+      {/* Logout button in top right */}
       <div className="absolute top-4 right-4 z-10">
         <button
           onClick={handleLogout}
@@ -329,19 +407,23 @@ function Home() {
         </button>
       </div>
 
+      {/* Main content with fixed height */}
       <div className="h-screen pt-4 px-4 pb-4">
         <div className={`h-[calc(100%-1rem)] max-w-[90%] mx-auto ${
           !authStatus.twitter 
             ? 'flex justify-center items-start' 
             : 'grid grid-cols-[1fr_1fr]'
         } gap-4`}>
+          {/* Left side - Add Content */}
           {authStatus.twitter && (
             <div className="h-full bg-black-secondary rounded-lg shadow-lg p-4 flex flex-col">
-              <AddContent />
+              <AddContent onContentAdded={handleContentAdded} />
             </div>
           )}
 
+          {/* Right side - Auth box will be centered when not authenticated */}
           <div className={`h-full flex flex-col gap-4 ${!authStatus.twitter ? 'w-[500px]' : ''}`}>
+            {/* Auth Content - Top */}
             <div className="bg-black-secondary rounded-lg shadow-lg p-4">
               <div className="text-center mb-4">
                 <h1 className="text-2xl font-bold text-white">
@@ -457,11 +539,12 @@ function Home() {
               )}
             </div>
 
+            {/* Chat Window - Bottom */}
             {authStatus.twitter && (
               <div className="flex-1 bg-black-secondary rounded-lg shadow-lg p-4 min-h-0 flex flex-col">
                 <h2 className="text-2xl font-bold mb-4">Mirror Chat</h2>
                 <div className="flex-1 min-h-0">
-                  <Chat hasUserContent={true} username={username} />
+                  <Chat hasUserContent={hasUserContent} username={username} />
                 </div>
               </div>
             )}
