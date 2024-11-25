@@ -18,25 +18,25 @@ comment on table public.documents is 'Stores metadata about documents associated
 alter table public.documents enable row level security;
 
 -- Create RLS policies for documents table
-create policy "Allow access to authenticated users"
+create policy "Allow authenticated users to insert documents"
     on public.documents
     for insert
     to authenticated
     with check (true);
 
-create policy "Allow access to authenticated users"
+create policy "Allow authenticated users to select their own documents"
     on public.documents
     for select
     to authenticated
     using (auth.uid() = user_id);
 
-create policy "Allow access to authenticated users"
+create policy "Allow authenticated users to update their own documents"
     on public.documents
     for update
     to authenticated
     using (auth.uid() = user_id);
 
-create policy "Allow access to authenticated users"
+create policy "Allow authenticated users to delete their own documents"
     on public.documents
     for delete
     to authenticated
@@ -58,7 +58,7 @@ comment on table public.chunks is 'Stores chunks and embeddings of documents.';
 alter table public.chunks enable row level security;
 
 -- Create RLS policies for chunks table
-create policy "Allow access to authenticated users"
+create policy "Allow authenticated users to select chunks"
     on public.chunks
     for select
     to authenticated
@@ -77,5 +77,5 @@ create index idx_chunks_embeddings on public.chunks using ivfflat (embeddings ve
 -- Grant permissions
 grant usage on schema public to anon, authenticated, service_role;
 grant all on public.documents to authenticated, service_role;
-grant select on public.chunks to authenticated, service_role;
+grant all on public.chunks to authenticated, service_role;
 grant usage, select on sequence chunks_id_seq to authenticated, service_role; 
