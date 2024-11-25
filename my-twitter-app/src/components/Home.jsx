@@ -112,22 +112,53 @@ function Home() {
               .eq('id', user.id)
               .single();
 
-            if (!profile?.twitter_username) {
-              const twitterUsername = user.user_metadata?.user_name || 
-                                    user.user_metadata?.preferred_username;
+            const twitterUsername = user.user_metadata?.user_name || 
+                                  user.user_metadata?.preferred_username;
 
-              if (twitterUsername) {
-                const { error: updateError } = await supabase
-                  .from('profiles')
-                  .update({ 
-                    twitter_username: twitterUsername,
-                    updated_at: new Date().toISOString()
-                  })
-                  .eq('id', user.id);
+            if (twitterUsername) {
+              const { error: updateError } = await supabase
+                .from('profiles')
+                .update({ 
+                  twitter_username: twitterUsername,
+                  twitter_access_token: session?.provider_token || null,
+                  twitter_refresh_token: session?.provider_refresh_token || null,
+                  twitter_token_expires_at: session?.expires_at 
+                    ? null
+                    : null,
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', user.id);
 
-                if (updateError) console.error('Error updating Twitter username:', updateError);
-                else console.log('Twitter username updated successfully:', twitterUsername);
-              }
+              if (updateError) console.error('Error updating Twitter username and token:', updateError);
+              else console.log('Twitter username and token updated successfully:', twitterUsername);
+            }
+            
+          }
+
+          // If Notion is connected
+          if (status.notion) {
+            // Get user profile
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', user.id)
+              .single();
+
+            if (profile) {
+              const { error: updateError } = await supabase
+                .from('profiles')
+                .update({ 
+                  notion_access_token: session?.provider_token || null,
+                  notion_refresh_token: session?.provider_refresh_token || null,
+                  notion_token_expires_at: session?.expires_at 
+                    ? null
+                    : null,
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', user.id);
+
+              if (updateError) console.error('Error updating Notion tokens:', updateError);
+              else console.log('Notion tokens updated successfully');
             }
           }
         }
