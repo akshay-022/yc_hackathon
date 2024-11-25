@@ -212,6 +212,42 @@ function Home() {
 
   const handleNotionAuth = async () => {
     try {
+      if (authStatus.notion) {
+        // First get user identities
+        const { data: { identities }, error: identitiesError } = await supabase.auth.getUserIdentities();
+        if (identitiesError) throw identitiesError;
+
+        // Find Notion identity
+        const notionIdentity = identities?.find((identity) => identity.provider === 'notion');
+        if (!notionIdentity) {
+          throw new Error('Notion identity not found');
+        }
+
+        // Unlink Notion identity
+        const { data, error: unlinkError } = await supabase.auth.unlinkIdentity(notionIdentity);
+        if (unlinkError) throw unlinkError;
+        
+        // Update local auth status
+        setAuthStatus(prev => ({ ...prev, notion: false }));
+        
+        // Update profile in database
+        const { data: { user } } = await supabase.auth.getUser();
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ 
+            notion_access_token: null,
+            notion_refresh_token: null,
+            notion_token_expires_at: null,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', user.id);
+
+        if (updateError) throw updateError;
+        
+        console.log('Notion successfully delinked');
+      }
+
+      // Always proceed with linking (either after delinking or fresh link)
       const { data, error } = await supabase.auth.linkIdentity({
         provider: 'notion',
         options: {
@@ -219,8 +255,9 @@ function Home() {
         }
       });
       if (error) throw error;
+      
     } catch (error) {
-      console.error('Notion identity linking error:', error.message);
+      console.error('Notion identity linking/unlinking error:', error.message);
     }
   };
 
@@ -229,14 +266,19 @@ function Home() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No user found');
 
+      // Get the database ID from user's profile or environment
+
       const response = await supabase.functions.invoke('notion', {
-        body: { userId: userId },
+        body: { 
+          user_id: user.id 
+        },
       });
 
-      if (!response.ok) throw new Error('Failed to sync Notion content');
+      if (response.error) {
+        throw new Error(`Failed to sync Notion content: ${response.error.message}`);
+      }
 
-      const data = await response.json();
-      console.log('Notion sync successful:', data);
+      console.log('Notion sync successful:', response.data);
     } catch (error) {
       console.error('Error syncing Notion content:', error);
     }

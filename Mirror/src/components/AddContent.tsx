@@ -47,8 +47,25 @@ function AddContent({ hasUserContent }: { hasUserContent: boolean }) {
     console.log('Submitting content:', content);
 
     try {
+      // First, process the content
+      const processResponse = await supabase.functions.invoke('process-content', {
+        body: { 
+          text: content,
+          user_id: userId 
+        },
+      });
+
+      if (processResponse.error) {
+        throw new Error(`Content processing failed: ${processResponse.error.message}`);
+      }
+
+      const processedText = processResponse.data.processedText;
+
+      console.log('Processed content response:', processResponse.data.processedText);
+
+      // Use Supabase Edge Function for embedding
       const response = await supabase.functions.invoke('voyage', {
-        body: { content: content, userId: userId, source: 'user' },
+        body: { content: processedText, userId: userId, source: 'user' },
       });
 
       console.log('Response from Supabase function:', response);

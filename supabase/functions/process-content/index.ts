@@ -3,6 +3,8 @@
 import { corsHeaders } from '../_shared/cors.ts';
 import { createClient } from 'npm:@supabase/supabase-js';
 import { YoutubeTranscript } from 'npm:youtube-transcript';
+import { google } from 'npm:googleapis';
+import { DOMParser } from "https://deno.land/x/deno_dom/deno-dom-wasm.ts";
 
 console.log(`Function "process-content" up and running!`);
 
@@ -14,6 +16,56 @@ interface ProcessedContent {
 function extractUrls(text: string): string[] {
   const urlPattern = /https?:\/\/(?:[-\w.@]|(?:%[\da-fA-F]{2})|[/?=&])+(?=\s|\n|$)/g;
   return text.match(urlPattern) || [];
+}
+
+async function getYoutubeVideoDetails(videoId: string): Promise<string> {
+  const youtube = google.youtube('v3');
+  const apiKey = Deno.env.get('YOUTUBE_API_KEY');
+
+  if (!apiKey) {
+    throw new Error('YouTube API key not configured');
+  }
+
+  try {
+    // Get video details
+    const videoResponse = await youtube.videos.list({
+      key: apiKey,
+      part: ['snippet'],
+      id: [videoId],
+    });
+
+    const video = videoResponse.data.items?.[0];
+    if (!video) {
+      throw new Error('Video not found');
+    }
+
+    // Get video comments (optional)
+    const commentsResponse = await youtube.commentThreads.list({
+      key: apiKey,
+      part: ['snippet'],
+      videoId: videoId,
+      maxResults: 25,
+      order: 'relevance',
+    });
+
+    const comments = commentsResponse.data.items || [];
+
+    // Combine video information
+    const videoInfo = [
+      `Title: ${video.snippet?.title || 'No title'}`,
+      `Description: ${video.snippet?.description || 'No description'}`,
+      '\nTop Comments:',
+      ...comments.map(comment => 
+        `- ${comment.snippet?.topLevelComment?.snippet?.textDisplay || ''}`
+      ).slice(0, 5)
+    ].join('\n');
+
+    return videoInfo;
+
+  } catch (error) {
+    console.error('YouTube API Error:', error);
+    throw new Error(`Failed to fetch YouTube video data: ${error.message}`);
+  }
 }
 
 async function processContent(text: string): Promise<string> {
@@ -31,8 +83,8 @@ async function processContent(text: string): Promise<string> {
         
         if (!videoId) throw new Error('Invalid YouTube URL');
         
-        const transcript = await YoutubeTranscript.fetchTranscript(videoId);
-        content = transcript.map(entry => entry.text).join(' ');
+        // Use new YouTube data fetching function
+        content = await getYoutubeVideoDetails(videoId);
       } else {
         const response = await fetch(url, {
           headers: {
@@ -43,8 +95,10 @@ async function processContent(text: string): Promise<string> {
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         
         const html = await response.text();
-        const doc = new DOMParser().parseFromString(html, 'text/html');
+        const doc = new DOMParser().parseFromString(html, "text/html");
         
+        if (!doc) throw new Error("Failed to parse HTML");
+
         // Remove unwanted elements
         ['script', 'style', 'nav', 'footer', 'header'].forEach(tag => {
           doc.querySelectorAll(tag).forEach(el => el.remove());
@@ -65,7 +119,7 @@ async function processContent(text: string): Promise<string> {
           }
         }
 
-        content = extractedContent || doc.body.textContent?.trim() || '';
+        content = extractedContent || doc.body?.textContent?.trim() || '';
         content = content.replace(/\s+/g, ' ').trim();
       }
 
