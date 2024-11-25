@@ -8,6 +8,7 @@ create table public.documents (
     id uuid primary key default gen_random_uuid(),
     user_id uuid not null references auth.users (id) on delete cascade,
     scrape_source text not null check (scrape_source in ('twitter', 'notion', 'youtube', 'user')),
+    summary text,
     created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
@@ -17,25 +18,28 @@ comment on table public.documents is 'Stores metadata about documents associated
 alter table public.documents enable row level security;
 
 -- Create RLS policies for documents table
-create policy "Allow authenticated users to insert documents" 
+create policy "Allow access to authenticated users"
     on public.documents
     for insert
     to authenticated
-    using (true);
+    with check (true);
 
-create policy "Allow users to select their own documents" 
+create policy "Allow access to authenticated users"
     on public.documents
     for select
+    to authenticated
     using (auth.uid() = user_id);
 
-create policy "Allow users to update their own documents" 
+create policy "Allow access to authenticated users"
     on public.documents
     for update
+    to authenticated
     using (auth.uid() = user_id);
 
-create policy "Allow users to delete their own documents" 
+create policy "Allow access to authenticated users"
     on public.documents
     for delete
+    to authenticated
     using (auth.uid() = user_id);
 
 -- Create chunks table
@@ -54,12 +58,13 @@ comment on table public.chunks is 'Stores chunks and embeddings of documents.';
 alter table public.chunks enable row level security;
 
 -- Create RLS policies for chunks table
-create policy "Allow select on chunks" 
+create policy "Allow access to authenticated users"
     on public.chunks
     for select
+    to authenticated
     using (true);
 
-create policy "Restrict insert, update, delete on chunks" 
+create policy "Restrict insert, update, delete on chunks"
     on public.chunks
     for all
     using (false);

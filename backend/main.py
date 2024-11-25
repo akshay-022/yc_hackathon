@@ -313,7 +313,6 @@ async def sync_notion_content(request: NotionSyncRequest):
         logger.error(f"Error syncing Notion content: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
 async def get_all_pages_and_databases(notion_client):
     pages = []
     next_cursor = None
