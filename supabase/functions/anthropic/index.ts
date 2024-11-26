@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js';
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import Anthropic from 'npm:@anthropic-ai/sdk';
+import { VoyageAIClient } from "npm:voyageai";
 import { corsHeaders } from '../_shared/cors.ts';
 
 const supabase = createClient(
@@ -12,7 +13,20 @@ const client = new Anthropic({
   apiKey: Deno.env.get('ANTHROPIC_API_KEY')!,
 });
 
+const voyageClient = new VoyageAIClient({
+  apiKey: Deno.env.get('VOYAGE_API_KEY')!,
+});
+
 console.log(`Function "anthropic" up and running!`);
+
+// Function to calculate embeddings for text chunks
+async function calculateEmbeddings(textChunks: string[]): Promise<number[][]> {
+    const response = await voyageClient.embed({
+        input: textChunks,
+        model: 'voyage-3-lite',
+    });
+    return response.data.map(item => item.embedding);
+}
 
 Deno.serve(async (req) => {
   const headers = {
@@ -50,43 +64,101 @@ Deno.serve(async (req) => {
       conversationId = conversationData.id;
     }
 
-    // Insert user message
+    // Calculate embedding for the user message
+    const userMessageEmbedding = await calculateEmbeddings([content]);
+
+    // Use the match_documents function to get related documents
+    const { data: matchedDocuments, error: matchError } = await supabase.rpc('match_documents', {
+      current_conversation_id: conversationId,
+      query_embedding: userMessageEmbedding[0],
+      current_user_id: targetUserId,
+    });
+
+    
+    // Insert user message with embedding
     const { data: userMessageData, error: userMessageError } = await supabase
       .from('messages')
-      .insert({ content, conversation_id: conversationId, is_bot: false })
+      .insert({ content, conversation_id: conversationId, is_bot: false, embeddings: userMessageEmbedding[0] })
       .select();
 
     if (userMessageError) throw userMessageError;
 
     // Get the ID of the inserted user message
     const userMessageId = userMessageData[0]?.id;
+    
+    
+    if (matchError) throw matchError;
 
-    const system_prompt = `You are a friendly and helpful AI assistant engaging in a chat conversation. You are given some additional data too. You must talk and think like the person in question who's data you have been given.
-        You are supposed to be an AI version of that person, stick as close to their experiences and personalities as you can while answering questions. You are NOT Claude, you are that person now.
-        Keep your responses concise and conversational.
-        Always maintain a positive and supportive tone.
-        If you don't know something, be honest about it.
-        Never share personal information or make claims about real individuals.
-        Avoid any harmful, unethical, or inappropriate content.
-        
-        
-        `;
+    // Define a dictionary for valid sources
+    const validSources: Record<string, boolean> = {
+      'messages': true,
+      'scrape source': true,
+      // Add more sources as needed
+    };
 
+    // Filter the fetched documents by source output variable
+    const filteredDocuments = matchedDocuments.filter(doc => validSources[doc.source]);
+    console.log("filtered", filteredDocuments);
+    const personalInfoPrompt = filteredDocuments.find(doc => doc.source === 'personal_info')?.content ?? '';
+    const likedContentPrompt = filteredDocuments.find(doc => doc.source === 'liked_content')?.content ?? '';
+    const privateThoughtsPrompt = filteredDocuments.find(doc => doc.source === 'private_thoughts')?.content ?? '';
+    const notionPrompt = filteredDocuments.find(doc => doc.source === 'notion')?.content ?? '';
+    const messagesPrompt = filteredDocuments.filter(doc => doc.source === 'messages').map(doc => doc.content).join('\n') || '';
+
+    // Build the dynamic system prompt
+    const instructions = [
+        "Follow these instructions STRICTLY:",
+        "1. Speak and think ONLY like the data context given below.",
+        "2. Handle personal and sensitive data carefully; the context is in first person. Data context:",
+    ];
+
+    // Add unnumbered list for conditional prompts
+    const conditionalInstructions: string[] = [];
+    if (personalInfoPrompt) {
+        conditionalInstructions.push(`- Use personal information - ${personalInfoPrompt} - to answer user questions.`);
+    }
+    if (likedContentPrompt) {
+        conditionalInstructions.push(`- Incorporate likes - ${likedContentPrompt} - in your responses.`);
+    }
+    if (privateThoughtsPrompt) {
+        conditionalInstructions.push(`- Do not share private thoughts but use them to inform your responses - ${privateThoughtsPrompt}.`);
+    }
+    if (notionPrompt) {
+        conditionalInstructions.push(`- Use Notion content - ${notionPrompt} - sparingly.`);
+    }
+    if (messagesPrompt) {
+        conditionalInstructions.push(`- Relevant previous messages (AI and User) - ${messagesPrompt}.`);
+    }
+
+    instructions.push(...conditionalInstructions);
+
+    instructions.push(
+        "3. Be honest if you don't know something; avoid claims about real individuals.",
+        "4. Do not produce harmful, unethical, or inappropriate content.",
+        "5. Be CONCISE and REPLY LIKE A HUMAN WOULD IN A TEXT."
+    );
+    instructions.push(`Reply only with the reply to the query response and NOTHING else. For example, 
+      1. User: What do you like?, Reply: "I like apples."
+      2. User: Hi, Reply: "Hello"`);
+    const final_prompt = instructions.join('\n');
+    console.log(final_prompt);
     // Generate bot response
     const message = await client.messages.create({
       max_tokens: 1024,
       messages: [
-        { role: 'user', content: system_prompt + content }
+        { role: 'user', content: final_prompt }
       ],
       model: 'claude-3-haiku-20240307',
     });
 
     const botResponseContent = message.content[0].text;
 
-    // Insert bot response
+    const botResponseEmbedding = await calculateEmbeddings([botResponseContent]);
+
+    // Insert bot response with embedding
     const { data: botMessageData, error: botMessageError } = await supabase
       .from('messages')
-      .insert({ content: botResponseContent, conversation_id: conversationId, is_bot: true })
+      .insert({ content: botResponseContent, conversation_id: conversationId, is_bot: true, embeddings: botResponseEmbedding[0] })
       .select();
 
     if (botMessageError) throw botMessageError;

@@ -1,5 +1,8 @@
 -- Migration: Create conversations and messages tables with RLS
 
+-- Enable vector extension if not already enabled
+create extension if not exists vector;
+
 -- Create conversations table
 create table public.conversations (
   id bigint generated always as identity primary key ,
@@ -17,7 +20,8 @@ create table public.messages (
   conversation_id bigint references public.conversations(id) on delete cascade,
   content text not null,
   is_bot boolean default false,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  embeddings vector(512)
 );
 
 comment on table public.messages is 'Stores chat messages sent by users, associated with a conversation.';

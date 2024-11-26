@@ -27,6 +27,7 @@ function chunkText(text: string, size: number): string[] {
 }
 console.log(`Function "voyage" up and running!`)
 
+
 // Function to insert document and chunks into Supabase
 async function insertDocumentAndChunks(text: string, userId: string, source: string) {
   const summary = text; // Create a summary from the texts
@@ -34,7 +35,18 @@ async function insertDocumentAndChunks(text: string, userId: string, source: str
 
   const results = [];
 
-  const textChunks = chunkText(text, 5000);
+  // Regex check for URLs
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const urls = text.match(urlRegex);
+  if (urls) {
+    console.log('URLs found:', urls);
+  }
+  
+  // Remove URLs from the text
+  const textWithoutUrls = text.replace(urlRegex, '');
+
+  // Split the text into chunks of 5000 characters
+  const textChunks = chunkText(textWithoutUrls, 5000);
   
   // Send all text chunks at once
   const response = await client.embed({
