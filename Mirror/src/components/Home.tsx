@@ -28,6 +28,7 @@ function Home() {
   );
   const [isLoading, setIsLoading] = useState(true);
   const [authError, setAuthError] = useState<string>('');
+  const [isNotionSyncing, setIsNotionSyncing] = useState(false);
 
   const createProfile = async (user: any, metadata: any, session: any) => {
     try {
@@ -311,10 +312,9 @@ function Home() {
 
   const handleNotionSync = async () => {
     try {
+      setIsNotionSyncing(true);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No user found');
-
-      // Get the database ID from user's profile or environment
 
       const response = await supabase.functions.invoke('notion', {
         body: { 
@@ -329,6 +329,8 @@ function Home() {
       console.log('Notion sync successful:', response.data);
     } catch (error) {
       console.error('Error syncing Notion content:', error);
+    } finally {
+      setIsNotionSyncing(false);
     }
   };
 
@@ -473,9 +475,17 @@ function Home() {
                 <div className="mt-4">
                   <button 
                     onClick={handleNotionSync}
-                    className="w-full bg-purple-600 text-white py-2 rounded-md hover:bg-purple-700 transition duration-300"
+                    disabled={isNotionSyncing}
+                    className="w-full bg-purple-600 text-white py-2 rounded-md hover:bg-purple-700 transition duration-300 flex items-center justify-center gap-2"
                   >
-                    Sync Notion Content
+                    {isNotionSyncing ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span>Syncing...</span>
+                      </>
+                    ) : (
+                      'Sync Notion Content'
+                    )}
                   </button>
                 </div>
               )}

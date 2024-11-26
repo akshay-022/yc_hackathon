@@ -12,6 +12,7 @@ function AddContent({ hasUserContent }: { hasUserContent: boolean }) {
   const backendUrl = useBackend();
   const micButtonRef = useRef<HTMLButtonElement | null>(null);
   const [contentType, setContentType] = useState<string>('about');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     const fetchUserDocuments = async () => {
@@ -47,6 +48,7 @@ function AddContent({ hasUserContent }: { hasUserContent: boolean }) {
     if (!content.trim()) return;
 
     console.log('Submitting content:', content);
+    setIsSubmitting(true);
 
     try {
       // First, process the content
@@ -92,6 +94,8 @@ function AddContent({ hasUserContent }: { hasUserContent: boolean }) {
       }
     } catch (error) {
       console.error('Error:', error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -205,10 +209,17 @@ function AddContent({ hasUserContent }: { hasUserContent: boolean }) {
       <div className="flex gap-2">
         <button
           onClick={handleSubmit}
-          className="flex-1 bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition duration-300 disabled:opacity-50"
-          disabled={isRecording}
+          disabled={isRecording || isSubmitting}
+          className="flex-1 bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition duration-300 disabled:opacity-50 flex items-center justify-center gap-2"
         >
-          Add Content
+          {isSubmitting ? (
+            <>
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              <span>Adding...</span>
+            </>
+          ) : (
+            'Add Content'
+          )}
         </button>
         <button
           ref={micButtonRef}
