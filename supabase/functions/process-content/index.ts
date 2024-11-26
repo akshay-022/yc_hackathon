@@ -4,7 +4,8 @@ import { corsHeaders } from '../_shared/cors.ts';
 import { createClient } from 'npm:@supabase/supabase-js';
 import { YoutubeTranscript } from 'npm:youtube-transcript';
 import { google } from 'npm:googleapis';
-import { DOMParser } from "https://deno.land/x/deno_dom/deno-dom-wasm.ts";
+import { TokenTextSplitter } from 'npm:langchain/text_splitter';
+import { Document } from 'npm:langchain/document';
 
 console.log(`Function "process-content" up and running!`);
 
@@ -12,6 +13,11 @@ interface ProcessedContent {
   originalText: string;
   processedText: string;
 }
+
+const truncateStringByBytes = (str: string, bytes: number) => {
+  const enc = new TextEncoder();
+  return new TextDecoder("utf-8").decode(enc.encode(str).slice(0, bytes));
+};
 
 function extractUrls(text: string): string[] {
   const urlPattern = /https?:\/\/(?:[-\w.@]|(?:%[\da-fA-F]{2})|[/?=&])+(?=\s|\n|$)/g;
@@ -68,6 +74,62 @@ async function getYoutubeVideoDetails(videoId: string): Promise<string> {
   }
 }
 
+async function scrapeUrl(url: string): Promise<string> {
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const text = await response.text();
+    
+    // Basic HTML cleaning using regex
+    let content = text
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+      .replace(/<[^>]+>/g, '\n')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/\n\s*\n/g, '\n')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    content = truncateStringByBytes(content, 36000);
+
+    const splitter = new TokenTextSplitter({
+      encodingName: "gpt2",
+      chunkSize: 300,
+      chunkOverlap: 20,
+    });
+
+    // Create a document first
+    const doc = new Document({
+      pageContent: content,
+      metadata: {
+        url: url,
+        text: truncateStringByBytes(content, 36000),
+      },
+    });
+
+    // Split the text into chunks
+    const chunks = await splitter.splitText(content);
+
+    // Return the joined chunks
+    return chunks.join('\n\n');
+
+  } catch (error) {
+    console.error(`Error scraping ${url}:`, error);
+    throw error;
+  }
+}
+
 async function processContent(text: string): Promise<string> {
   const urls = extractUrls(text);
   let processedText = text;
@@ -86,41 +148,7 @@ async function processContent(text: string): Promise<string> {
         // Use new YouTube data fetching function
         content = await getYoutubeVideoDetails(videoId);
       } else {
-        const response = await fetch(url, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (compatible; ContentBot/1.0)',
-          },
-        });
-        
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        
-        const html = await response.text();
-        const doc = new DOMParser().parseFromString(html, "text/html");
-        
-        if (!doc) throw new Error("Failed to parse HTML");
-
-        // Remove unwanted elements
-        ['script', 'style', 'nav', 'footer', 'header'].forEach(tag => {
-          doc.querySelectorAll(tag).forEach(el => el.remove());
-        });
-
-        // Try to find main content
-        const contentSelectors = [
-          'article', 'main', '.content', '#content',
-          '.post-content', '.article-content'
-        ];
-
-        let extractedContent = '';
-        for (const selector of contentSelectors) {
-          const element = doc.querySelector(selector);
-          if (element?.textContent) {
-            extractedContent = element.textContent.trim();
-            break;
-          }
-        }
-
-        content = extractedContent || doc.body?.textContent?.trim() || '';
-        content = content.replace(/\s+/g, ' ').trim();
+        content = await scrapeUrl(url);
       }
 
       processedText = processedText.replace(
