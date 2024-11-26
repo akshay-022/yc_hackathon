@@ -67,6 +67,7 @@ function Chat({ hasUserContent, username }: ChatProps) {
           .from('conversations')
           .select('*')
           .eq('source_user_id', userId)
+          .eq('target_user_id', userId)
           .order('created_at', { ascending: false });
 
         if (error) throw error;

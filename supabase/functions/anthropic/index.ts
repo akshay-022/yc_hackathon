@@ -52,6 +52,12 @@ Deno.serve(async (req) => {
       .eq('id', conversationId)
       .single();
 
+    if (sourceUserId === targetUserId) {
+      title = `New reflection`;
+    } else {
+      title = `Chat between ${sourceUserId} and ${targetUserId}`;
+    }
+      
     if (conversationError || !conversationData) {
       const { data: newConversation, error: newConversationError } = await supabase
         .from('conversations')

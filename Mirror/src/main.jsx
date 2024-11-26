@@ -25,7 +25,7 @@ const router = createBrowserRouter([
     element: <AuthCallback />
   },
   {
-    path: '/chat/:userId',
+    path: '/chat/:targetUserId',
     element: <PublicChat />
   }
 ]);

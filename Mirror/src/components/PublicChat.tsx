@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 
 function PublicChat() {
-  const { userId } = useParams();
+  const { targetUserId } = useParams();
   const [isLoading, setIsLoading] = useState(true);
   const [messages, setMessages] = useState<any[]>([]);
   const [message, setMessage] = useState('');
@@ -20,7 +20,7 @@ function PublicChat() {
   const [currentUsername, setCurrentUsername] = useState('');
   const [targetUsername, setTargetUsername] = useState('');
   const [isLoadingUsernames, setIsLoadingUsernames] = useState(true);
-
+  const [currentProfileId, setCurrentProfileId] = useState<string | null>(null);
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -42,35 +42,38 @@ function PublicChat() {
           supabase.auth.getUser(),
           supabase
             .from('profiles')
-            .select('username')
-            .eq('id', userId)
+            .select('name')
+            .eq('id', targetUserId)
             .single()
         ]);
-
+        
         if (user) {
           const { data: currentProfile } = await supabase
             .from('profiles')
-            .select('username')
+            .select('name, id')
             .eq('id', user.id)
             .single();
 
           if (mounted) {
-            setCurrentUsername(currentProfile?.username || 'You');
-            setTargetUsername(targetProfile?.username || 'User');
+            setCurrentUsername(currentProfile?.name || 'You');
+            setTargetUsername(targetProfile?.name || 'User');
             setIsLoadingUsernames(false);
+            setCurrentProfileId(currentProfile?.id);
           }
+
         }
 
         const { data: newConv } = await supabase
         .from('conversations')
         .insert([{ 
-            target_user_id: userId, 
-            title: `Chat between ${currentProfile?.username || 'User'} and ${targetProfile?.username || 'User'}`
+            target_user_id: targetUserId, 
+            source_user_id: user.id,
+            title: `Chat between ${currentUsername} and ${targetUsername}`,
         }])
         .select()
         .single();
           
-          convId = newConv?.id;
+        const convId = newConv?.id;
 
         if (mounted && convId) {
           setConversationId(convId);
@@ -104,7 +107,8 @@ function PublicChat() {
             .from('conversations')
             .delete()
             .eq('id', conversationId)
-            .eq('target_user_id', userId);
+            .eq('source_user_id', currentProfileId)
+            .eq('target_user_id', targetUserId);
         } catch (error) {
           console.error('Error deleting conversation:', error);
         }
@@ -118,7 +122,7 @@ function PublicChat() {
       handleBeforeUnload();
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [userId, conversationId]);
+  }, [targetUserId, conversationId]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -142,7 +146,7 @@ function PublicChat() {
 
       // Use Supabase Edge Function for processing
       const { data: responseData, error: responseError } = await supabase.functions.invoke('anthropic', {
-        body: { content: message, sourceUserId: null, targetUserId: userId, conversationId },
+        body: { content: message, sourceUserId: currentProfileId, targetUserId: targetUserId, conversationId },
       });
 
       if (responseError) throw responseError;
