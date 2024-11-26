@@ -11,6 +11,7 @@ function AddContent({ hasUserContent }: { hasUserContent: boolean }) {
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const backendUrl = useBackend();
   const micButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [contentType, setContentType] = useState<string>('about');
 
   useEffect(() => {
     const fetchUserDocuments = async () => {
@@ -62,11 +63,20 @@ function AddContent({ hasUserContent }: { hasUserContent: boolean }) {
 
       const processedText = processResponse.data.processedText;
 
-      console.log('Processed content response:', processResponse.data.processedText);
+      // Map dropdown selection to source type
+      const sourceType = {
+        'about': 'personal_info',
+        'likes': 'interests',
+        'thoughts': 'private_thoughts'
+      }[contentType];
 
-      // Use Supabase Edge Function for embedding
+      // Use Supabase Edge Function for embedding with source type
       const response = await supabase.functions.invoke('voyage', {
-        body: { content: processedText, userId: userId, source: 'user' },
+        body: { 
+          content: processedText, 
+          userId: userId, 
+          source: sourceType 
+        },
       });
 
       console.log('Response from Supabase function:', response);
@@ -175,6 +185,22 @@ function AddContent({ hasUserContent }: { hasUserContent: boolean }) {
         className="w-full h-32 p-3 bg-gray-700 text-white rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
         disabled={isRecording}
       />
+      <div className="relative mb-4">
+        <select
+          value={contentType}
+          onChange={(e) => setContentType(e.target.value)}
+          className="appearance-none w-full py-2 px-3 text-sm text-white bg-gray-700 rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors cursor-pointer"
+        >
+          <option value="about" className="bg-gray-700 text-sm">Something about myself</option>
+          <option value="likes" className="bg-gray-700 text-sm">Content I like</option>
+          <option value="thoughts" className="bg-gray-700 text-sm">My thoughts (Don't reveal to others)</option>
+        </select>
+        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
+          <svg className="fill-current h-3 w-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+            <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+          </svg>
+        </div>
+      </div>
       <div className="flex gap-2">
         <button
           onClick={handleSubmit}

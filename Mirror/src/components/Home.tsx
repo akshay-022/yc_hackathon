@@ -23,6 +23,10 @@ function Home() {
   const [showPublicInfo, setShowPublicInfo] = useState<boolean>(false);
   const navigate = useNavigate();
   const backendUrl = useBackend();
+  const [isReconnecting, setIsReconnecting] = useState<boolean>(
+    localStorage.getItem('isReconnectingTwitter') === 'true'
+  );
+  const [isLoading, setIsLoading] = useState(true);
 
   const createProfile = async (user: any, metadata: any, session: any) => {
     try {
@@ -77,12 +81,31 @@ function Home() {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         const { data: { user } } = await supabase.auth.getUser();
-        console.log('Checking auth status:', user);
-        console.log('Session:', session);
         
         if (!user) {
           navigate('/');
           return;
+        }
+
+        if (user.identities) {
+          const status = {
+            twitter: user.identities.some((id: any) => id.provider === 'twitter'),
+            notion: user.identities.some((id: any) => id.provider === 'notion')
+          };
+          
+          if (isReconnecting && status.twitter) {
+            setIsReconnecting(false);
+            localStorage.removeItem('isReconnectingTwitter');
+          }
+          if (isReconnecting && status.notion) {
+            setIsReconnecting(false);
+            localStorage.removeItem('isReconnectingNotion');
+          }
+          
+          
+          setAuthStatus(status);
+
+
         }
 
         const isNotionToken = session.provider_token.startsWith('ntn_');
@@ -162,9 +185,33 @@ function Home() {
           setUsername(profile.username);
         }
 
+        // Check if we need to clean up old identities
+        const oldTwitterIdentity = localStorage.getItem('twitterIdentityToUnlink');
+        const oldNotionIdentity = localStorage.getItem('notionIdentityToUnlink');
+
+        if (oldTwitterIdentity) {
+          try {
+            await supabase.auth.unlinkIdentity(JSON.parse(oldTwitterIdentity));
+          } catch (unlinkError) {
+            console.error('Error unlinking old Twitter identity:', unlinkError);
+          }
+          localStorage.removeItem('twitterIdentityToUnlink');
+        }
+
+        if (oldNotionIdentity) {
+          try {
+            await supabase.auth.unlinkIdentity(JSON.parse(oldNotionIdentity));
+          } catch (unlinkError) {
+            console.error('Error unlinking old Notion identity:', unlinkError);
+          }
+          localStorage.removeItem('notionIdentityToUnlink');
+        }
+
       } catch (error) {
-        console.error('Error fetching user:', error);
+        console.error('Error:', error);
         navigate('/');
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -181,7 +228,16 @@ function Home() {
         subscription.unsubscribe();
       }
     };
-  }, [navigate]);
+  }, [navigate, isReconnecting]);
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="h-screen bg-black-primary text-white flex items-center justify-center">
+        <div className="text-xl">Loading...</div>
+      </div>
+    );
+  }
 
   const handleLogout = async () => {
     try {
@@ -198,66 +254,92 @@ function Home() {
 
   const handleTwitterAuth = async () => {
     try {
-      const { data, error } = await supabase.auth.linkIdentity({
-        provider: 'twitter',
-        options: {
-          redirectTo: `${window.location.origin}/home`
+      if (authStatus.twitter) {
+        // Set reconnecting state without changing UI
+        localStorage.setItem('isReconnectingTwitter', 'true');
+        
+        // Start new OAuth flow first
+        const { data, error } = await supabase.auth.signInWithOAuth({
+          provider: 'twitter',
+          options: {
+            redirectTo: `${window.location.origin}/home`,
+            skipBrowserRedirect: true,
+          }
+        });
+
+        if (error) throw error;
+        
+        if (data?.url) {
+          // Store current identity info for cleanup after redirect
+          const { data: { identities } } = await supabase.auth.getUserIdentities();
+          const twitterIdentity = identities?.find((identity) => identity.provider === 'twitter');
+          if (twitterIdentity) {
+            localStorage.setItem('twitterIdentityToUnlink', JSON.stringify(twitterIdentity));
+          }
+
+          // Redirect to Twitter OAuth
+          window.location.href = data.url;
         }
-      });
-      if (error) throw error;
+      } else {
+        // First time linking - normal flow
+        const { data, error } = await supabase.auth.signInWithOAuth({
+          provider: 'twitter',
+          options: {
+            redirectTo: `${window.location.origin}/home`
+          }
+        });
+        if (error) throw error;
+      }
     } catch (error) {
-      console.error('Twitter identity linking error:', error.message);
+      console.error('Twitter auth error:', error.message);
+      localStorage.removeItem('isReconnectingTwitter');
+      localStorage.removeItem('twitterIdentityToUnlink');
+      setAuthStatus(prev => ({ ...prev, twitter: false }));
     }
   };
 
   const handleNotionAuth = async () => {
     try {
       if (authStatus.notion) {
-        // First get user identities
-        const { data: { identities }, error: identitiesError } = await supabase.auth.getUserIdentities();
-        if (identitiesError) throw identitiesError;
+        // Set reconnecting state without changing UI
+        localStorage.setItem('isReconnectingNotion', 'true');
 
-        // Find Notion identity
-        const notionIdentity = identities?.find((identity) => identity.provider === 'notion');
-        if (!notionIdentity) {
-          throw new Error('Notion identity not found');
+        // Start new OAuth flow first without unlinking
+        const { data, error } = await supabase.auth.signInWithOAuth({
+          provider: 'notion',
+          options: {
+            redirectTo: `${window.location.origin}/home`,
+            skipBrowserRedirect: true,
+          }
+        });
+
+        if (error) throw error;
+        
+        if (data?.url) {
+          // Store current identity info for cleanup after redirect
+          const { data: { identities } } = await supabase.auth.getUserIdentities();
+          const notionIdentity = identities?.find((identity) => identity.provider === 'notion');
+          if (notionIdentity) {
+            localStorage.setItem('notionIdentityToUnlink', JSON.stringify(notionIdentity));
+          }
+
+          // Redirect to Notion OAuth
+          window.location.href = data.url;
         }
-
-        // Unlink Notion identity
-        const { data, error: unlinkError } = await supabase.auth.unlinkIdentity(notionIdentity);
-        if (unlinkError) throw unlinkError;
-        
-        // Update local auth status
-        setAuthStatus(prev => ({ ...prev, notion: false }));
-        
-        // Update profile in database
-        const { data: { user } } = await supabase.auth.getUser();
-        const { error: updateError } = await supabase
-          .from('profiles')
-          .update({ 
-            notion_access_token: null,
-            notion_refresh_token: null,
-            notion_token_expires_at: null,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', user.id);
-
-        if (updateError) throw updateError;
-        
-        console.log('Notion successfully delinked');
+      } else {
+        // First time linking - normal flow
+        const { data, error } = await supabase.auth.signInWithOAuth({
+          provider: 'notion',
+          options: {
+            redirectTo: `${window.location.origin}/home`
+          }
+        });
+        if (error) throw error;
       }
-
-      // Always proceed with linking (either after delinking or fresh link)
-      const { data, error } = await supabase.auth.linkIdentity({
-        provider: 'notion',
-        options: {
-          redirectTo: `${window.location.origin}/home`
-        }
-      });
-      if (error) throw error;
-      
     } catch (error) {
-      console.error('Notion identity linking/unlinking error:', error.message);
+      console.error('Notion auth error:', error.message);
+      localStorage.removeItem('notionIdentityToUnlink');
+      setAuthStatus(prev => ({ ...prev, notion: false }));
     }
   };
 
@@ -373,11 +455,11 @@ function Home() {
 
       <div className="h-full p-4">
         <div className={`h-full max-w-[90%] mx-auto ${
-          !authStatus.twitter 
+          (!authStatus.twitter && !isReconnecting)
             ? 'flex justify-center items-start' 
             : 'grid grid-cols-[1fr_1fr]'
         } gap-4`}>
-          {authStatus.twitter && (
+          {(authStatus.twitter || isReconnecting) && (
             <div className="h-full bg-black-secondary rounded-lg shadow-lg p-4 flex flex-col overflow-auto">
               <AddContent />
             </div>
