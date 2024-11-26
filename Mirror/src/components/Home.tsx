@@ -408,7 +408,7 @@ function Home() {
   );
 
   return (
-    <div className="h-screen bg-black-primary text-white">
+    <div className="min-h-screen bg-black-primary text-white flex flex-col">
       <div className="absolute top-4 right-4 z-10">
         <button
           onClick={handleLogout}
@@ -419,20 +419,20 @@ function Home() {
         </button>
       </div>
 
-      <div className="h-full p-4">
-        <div className={`h-full max-w-[90%] mx-auto ${
+      <div className="flex-1 p-4 w-full">
+        <div className={`w-[90%] mx-auto ${
           (!authStatus.twitter && !isReconnecting)
             ? 'flex justify-center items-start' 
             : 'grid grid-cols-[1fr_1fr]'
-        } gap-4`}>
+        } gap-4 min-h-full`}>
           {(authStatus.twitter || isReconnecting) && (
-            <div className="h-full bg-black-secondary rounded-lg shadow-lg p-4 flex flex-col overflow-auto">
+            <div className="bg-black-secondary rounded-lg shadow-lg p-4 flex flex-col">
               <AddContent />
             </div>
           )}
 
-          <div className={`h-full flex flex-col gap-4 ${!authStatus.twitter ? 'w-[500px]' : ''}`}>
-            <div className="bg-black-secondary rounded-lg shadow-lg p-4 overflow-auto">
+          <div className={`flex flex-col gap-4 ${!authStatus.twitter ? 'w-[500px]' : ''}`}>
+            <div className="bg-black-secondary rounded-lg shadow-lg p-4">
               <div className="text-center mb-4">
                 <h1 className="text-2xl font-bold text-white">
                   Hello, {username}
@@ -548,9 +548,9 @@ function Home() {
             </div>
 
             {authStatus.twitter && (
-              <div className="flex-1 bg-black-secondary rounded-lg shadow-lg p-4 flex flex-col min-h-0">
+              <div className="bg-black-secondary rounded-lg shadow-lg p-4 flex flex-col">
                 <h2 className="text-2xl font-bold mb-4">Mirror Chat</h2>
-                <div className="flex-1 overflow-auto">
+                <div className="h-[600px]">
                   <Chat hasUserContent={true} username={username} />
                 </div>
               </div>

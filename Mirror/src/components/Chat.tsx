@@ -298,7 +298,7 @@ function Chat({ hasUserContent, username }: ChatProps) {
         <div className="w-60 bg-gray-900 p-4 border-r border-gray-800 flex flex-col">
           <h3 className="text-white text-lg font-semibold mb-4">Conversations</h3>
           
-          <div className="flex-1 overflow-y-auto mb-4">
+          <div className="flex-1 overflow-y-auto">
             <ul className="space-y-2">
               {conversations.map((conversation) => (
                 <li
@@ -347,14 +347,14 @@ function Chat({ hasUserContent, username }: ChatProps) {
 
           <button
             onClick={handleNewConversation}
-            className="w-full py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
+            className="w-full py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm mt-4"
           >
             New Chat
           </button>
         </div>
 
         <div className="flex-1 flex flex-col p-4">
-          <div className="text-center mb-4">
+          <div className="mb-4">
             <h2 className="text-2xl font-bold text-white">Your Mirror</h2>
             <p className="text-gray-400 text-sm mt-1">Your digital conscience</p>
           </div>
@@ -366,31 +366,33 @@ function Chat({ hasUserContent, username }: ChatProps) {
           )}
 
           <div className="flex-1 bg-gray-800 rounded-lg mb-4 overflow-hidden">
-            <div className="h-full overflow-y-auto space-y-4 pr-2" style={{ maxHeight: '300px' }}>
-              {messages.map((msg) => (
-                <div 
-                  key={msg.id} 
-                  className={`flex ${msg.is_bot ? 'justify-start' : 'justify-end'}`}
-                >
+            <div className="h-full overflow-y-auto p-4">
+              <div className="space-y-4">
+                {messages.map((msg) => (
                   <div 
-                    className={`max-w-[80%] rounded-lg px-4 py-2 ${
-                      msg.is_bot 
-                        ? 'bg-gray-700 text-white' 
-                        : 'bg-blue-600 text-white'
-                    }`}
+                    key={msg.id} 
+                    className={`flex ${msg.is_bot ? 'justify-start' : 'justify-end'}`}
                   >
-                    <p className="whitespace-pre-wrap">{msg.content}</p>
-                    <div className="text-xs opacity-50 mt-1">
-                      {new Date(msg.created_at).toLocaleTimeString()}
+                    <div 
+                      className={`max-w-[80%] rounded-lg px-4 py-2 ${
+                        msg.is_bot 
+                          ? 'bg-gray-700 text-white' 
+                          : 'bg-blue-600 text-white'
+                      }`}
+                    >
+                      <p className="whitespace-pre-wrap">{msg.content}</p>
+                      <div className="text-xs opacity-50 mt-1">
+                        {new Date(msg.created_at).toLocaleTimeString()}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-              {isLoadingReply && (
-                <div className="flex justify-center">
-                  <div className="text-white">Thinking...</div>
-                </div>
-              )}
+                ))}
+                {isLoadingReply && (
+                  <div className="flex justify-center">
+                    <div className="text-white">Thinking...</div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
