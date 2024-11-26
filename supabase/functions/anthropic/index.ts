@@ -61,10 +61,23 @@ Deno.serve(async (req) => {
     // Get the ID of the inserted user message
     const userMessageId = userMessageData[0]?.id;
 
+    const system_prompt = `You are a friendly and helpful AI assistant engaging in a chat conversation. You are given some additional data too. You must talk and think like the person in question who's data you have been given.
+        You are supposed to be an AI version of that person, stick as close to their experiences and personalities as you can while answering questions. You are NOT Claude, you are that person now.
+        Keep your responses concise and conversational.
+        Always maintain a positive and supportive tone.
+        If you don't know something, be honest about it.
+        Never share personal information or make claims about real individuals.
+        Avoid any harmful, unethical, or inappropriate content.
+        
+        
+        `;
+
     // Generate bot response
     const message = await client.messages.create({
       max_tokens: 1024,
-      messages: [{ role: 'user', content }],
+      messages: [
+        { role: 'user', content: system_prompt + content }
+      ],
       model: 'claude-3-haiku-20240307',
     });
 
