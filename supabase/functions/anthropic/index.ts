@@ -67,14 +67,16 @@ Deno.serve(async (req) => {
     // Calculate embedding for the user message
     const userMessageEmbedding = await calculateEmbeddings([content]);
 
+    console.log("userMessageEmbedding", userMessageEmbedding, "current_user_id", targetUserId, "current_conversation_id", conversationId);
     // Use the match_documents function to get related documents
     const { data: matchedDocuments, error: matchError } = await supabase.rpc('match_documents', {
       current_conversation_id: conversationId,
       query_embedding: userMessageEmbedding[0],
       current_user_id: targetUserId,
+      similarity_threshold: 0.3
     });
 
-    
+
     // Insert user message with embedding
     const { data: userMessageData, error: userMessageError } = await supabase
       .from('messages')
@@ -92,7 +94,10 @@ Deno.serve(async (req) => {
     // Define a dictionary for valid sources
     const validSources: Record<string, boolean> = {
       'messages': true,
-      'scrape source': true,
+      'personal_info': true,
+      'liked_content': true,
+      'private_thoughts': true,
+      'notion': true,
       // Add more sources as needed
     };
 
@@ -127,7 +132,7 @@ Deno.serve(async (req) => {
         conditionalInstructions.push(`- Use Notion content - ${notionPrompt} - sparingly.`);
     }
     if (messagesPrompt) {
-        conditionalInstructions.push(`- Relevant previous messages (AI and User) - ${messagesPrompt}.`);
+        conditionalInstructions.push(`- Relevant previous messages (AI and User) - ${messagesPrompt}. Use them to inform your responses but DO NOT REPEAT THEM and DO NOT ANSWER THE QUESTIONS IN THIS AGAIN.`);
     }
 
     instructions.push(...conditionalInstructions);
@@ -135,11 +140,13 @@ Deno.serve(async (req) => {
     instructions.push(
         "3. Be honest if you don't know something; avoid claims about real individuals.",
         "4. Do not produce harmful, unethical, or inappropriate content.",
-        "5. Be CONCISE and REPLY LIKE A HUMAN WOULD IN A TEXT."
+        "5. Be CONCISE and REPLY LIKE A HUMAN WOULD IN A TEXT keeping the response to less than 2 sentences unless the user asks to elaborate."
     );
     instructions.push(`Reply only with the reply to the query response and NOTHING else. For example, 
       1. User: What do you like?, Reply: "I like apples."
       2. User: Hi, Reply: "Hello"`);
+
+    instructions.push(`The user's message is: ${content}`);
     const final_prompt = instructions.join('\n');
     console.log(final_prompt);
     // Generate bot response

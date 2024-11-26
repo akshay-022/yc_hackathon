@@ -5,6 +5,7 @@ function SignUp({ onAuthSuccess, onSwitchToSignIn, onSignUpSuccess = () => {} }:
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
+  const [name, setName] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -20,6 +21,7 @@ function SignUp({ onAuthSuccess, onSwitchToSignIn, onSignUpSuccess = () => {} }:
         options: {
           data: {
             username,
+            name,
           },
         },
       });
@@ -33,6 +35,7 @@ function SignUp({ onAuthSuccess, onSwitchToSignIn, onSignUpSuccess = () => {} }:
             id: authData.user.id,
             username,
             email,
+            name,
           },
         ]);
 
@@ -58,6 +61,14 @@ function SignUp({ onAuthSuccess, onSwitchToSignIn, onSignUpSuccess = () => {} }:
         </div>
       )}
       
+      <input
+        type="text"
+        placeholder="Name"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        disabled={isLoading}
+      />
       <input
         type="text"
         placeholder="Username"

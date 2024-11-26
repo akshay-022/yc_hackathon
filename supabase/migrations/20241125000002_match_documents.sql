@@ -1,7 +1,8 @@
 CREATE OR REPLACE FUNCTION match_documents(
   query_embedding vector(512),  -- The embedding vector for the query
   current_conversation_id bigint,       -- The ID of the conversation to filter messages
-  current_user_id uuid                  -- The ID of the user to filter document chunks
+  current_user_id uuid,                  -- The ID of the user to filter document chunks
+  similarity_threshold float              -- The threshold for similarity score
 )
 RETURNS TABLE (
   id bigint,                    -- The ID of the matched message or document
@@ -27,8 +28,10 @@ BEGIN
         'messages' AS source
       FROM messages
       WHERE messages.conversation_id = current_conversation_id
+        AND messages.is_bot = false
+        AND (1 - (messages.embeddings <=> query_embedding)) > similarity_threshold
       ORDER BY similarity DESC, messages.created_at DESC 
-      LIMIT 5
+      LIMIT 3
     ) AS messages_query
 
     UNION ALL
@@ -45,6 +48,7 @@ BEGIN
       JOIN documents AS documents ON chunks.document_id = documents.id
       WHERE documents.user_id = current_user_id
         AND documents.scrape_source IN ('personal_info', 'liked_content', 'private_thoughts', 'notion')
+        AND (1 - (chunks.embeddings <=> query_embedding)) > similarity_threshold
       ORDER BY similarity DESC, chunks.created_at DESC
       LIMIT 10
     ) AS chunks_query

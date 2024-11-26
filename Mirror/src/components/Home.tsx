@@ -15,6 +15,7 @@ interface AuthStatus {
 
 function Home() {
   const [username, setUsername] = useState<string>('User');
+  const [nameofuser, setName] = useState<string>('');
   const [isLoggingOut, setIsLoggingOut] = useState<boolean>(false);
   const [authStatus, setAuthStatus] = useState<AuthStatus>({ twitter: false, notion: false });
   const [message, setMessage] = useState<string>('');
@@ -55,6 +56,7 @@ function Home() {
         id: user.id,
         username: username,
         email: email,
+        name: user.name || username, 
         updated_at: new Date().toISOString(),
         twitter_username: metadata.user_name || null,
         twitter_access_token: session?.provider_token || null,
@@ -170,12 +172,13 @@ function Home() {
 
         const { data: profile } = await supabase
           .from('profiles')
-          .select('username')
+          .select('username, name')
           .eq('id', user.id)
           .single();
-
+        
         if (profile?.username) {
           setUsername(profile.username);
+          setName(profile.name);
         }
 
         // Check if we need to clean up old identities
@@ -437,7 +440,7 @@ function Home() {
             <div className="bg-black-secondary rounded-lg shadow-lg p-4">
               <div className="text-center mb-4">
                 <h1 className="text-2xl font-bold text-white">
-                  Hello, {username}
+                  Hello, {nameofuser || username}
                 </h1>
                 <p className="text-sm text-gray-400 mt-2">
                   {authStatus.twitter 

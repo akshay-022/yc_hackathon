@@ -45,8 +45,8 @@ async function insertDocumentAndChunks(text: string, userId: string, source: str
   // Remove URLs from the text
   const textWithoutUrls = text.replace(urlRegex, '');
 
-  // Split the text into chunks of 5000 characters
-  const textChunks = chunkText(textWithoutUrls, 5000);
+  // Split the text into chunks of 3000 tokens
+  const textChunks = chunkText(textWithoutUrls, 3000);
   
   // Send all text chunks at once
   const response = await client.embed({
