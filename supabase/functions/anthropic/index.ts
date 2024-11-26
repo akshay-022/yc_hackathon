@@ -52,16 +52,17 @@ Deno.serve(async (req) => {
       .eq('id', conversationId)
       .single();
 
+    let title;
     if (sourceUserId === targetUserId) {
       title = `New reflection`;
     } else {
       title = `Chat between ${sourceUserId} and ${targetUserId}`;
     }
-      
+    console.log("title", title);
     if (conversationError || !conversationData) {
       const { data: newConversation, error: newConversationError } = await supabase
         .from('conversations')
-        .insert({ source_user_id: sourceUserId, target_user_id: targetUserId })
+        .insert({ source_user_id: sourceUserId, target_user_id: targetUserId, title })
         .select('id')
         .single();
       if (newConversationError) throw newConversationError;
@@ -72,8 +73,7 @@ Deno.serve(async (req) => {
 
     // Calculate embedding for the user message
     const userMessageEmbedding = await calculateEmbeddings([content]);
-
-    console.log("userMessageEmbedding", userMessageEmbedding, "current_user_id", targetUserId, "current_conversation_id", conversationId);
+ 
     // Use the match_documents function to get related documents
     const { data: matchedDocuments, error: matchError } = await supabase.rpc('match_documents', {
       current_conversation_id: conversationId,
@@ -108,8 +108,8 @@ Deno.serve(async (req) => {
     };
 
     // Filter the fetched documents by source output variable
+    const { data: name } = await supabase.from('profiles').select('name').eq('id', targetUserId).single();
     const filteredDocuments = matchedDocuments.filter(doc => validSources[doc.source]);
-    console.log("filtered", filteredDocuments);
     const personalInfoPrompt = filteredDocuments.find(doc => doc.source === 'personal_info')?.content ?? '';
     const likedContentPrompt = filteredDocuments.find(doc => doc.source === 'liked_content')?.content ?? '';
     const privateThoughtsPrompt = filteredDocuments.find(doc => doc.source === 'private_thoughts')?.content ?? '';
@@ -118,7 +118,7 @@ Deno.serve(async (req) => {
 
     // Build the dynamic system prompt
     const instructions = [
-        "Follow these instructions STRICTLY:",
+        `Your name is ${name?.name}. Follow these instructions STRICTLY:`,
         "1. Speak and think ONLY like the data context given below.",
         "2. Handle personal and sensitive data carefully; the context is in first person. Data context:",
     ];
@@ -138,7 +138,9 @@ Deno.serve(async (req) => {
         conditionalInstructions.push(`- Use Notion content - ${notionPrompt} - sparingly.`);
     }
     if (messagesPrompt) {
-        conditionalInstructions.push(`- Relevant previous messages (AI and User) - ${messagesPrompt}. Use them to inform your responses but DO NOT REPEAT THEM and DO NOT ANSWER THE QUESTIONS IN THIS AGAIN.`);
+        conditionalInstructions.push(`- Relevant previous messages (AI and User) - 
+          ${messagesPrompt}
+          Use them to inform your responses but DO NOT REPEAT THEM and DO NOT ANSWER THE QUESTIONS IN THIS AGAIN.`);
     }
 
     instructions.push(...conditionalInstructions);

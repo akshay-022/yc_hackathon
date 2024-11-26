@@ -47,6 +47,11 @@ function PublicChat() {
             .single()
         ]);
         
+        // if target profile does not exist, redirect to home
+        if (!targetProfile) {
+          window.location.href = '/';
+        }
+
         if (user) {
           const { data: currentProfile } = await supabase
             .from('profiles')
