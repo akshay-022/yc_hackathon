@@ -66,10 +66,11 @@ function AddContent({ hasUserContent }: { hasUserContent: boolean }) {
       // Map dropdown selection to source type
       const sourceType = {
         'about': 'personal_info',
-        'likes': 'interests',
+        'likes': 'liked_content',
         'thoughts': 'private_thoughts'
       }[contentType];
 
+      console.log('Source type:', sourceType);
       // Use Supabase Edge Function for embedding with source type
       const response = await supabase.functions.invoke('voyage', {
         body: { 
