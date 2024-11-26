@@ -38,6 +38,19 @@ Deno.serve(async (req) => {
       throw new Error('Missing required parameter: user_id');
     }
 
+    // Delete existing Notion content for this user
+    console.log('Deleting existing Notion content...');
+    const { error: deleteError } = await supabase
+      .from('documents')
+      .delete()
+      .eq('user_id', user_id)
+      .eq('scrape_source', 'notion');
+
+    if (deleteError) {
+      throw new Error(`Failed to delete existing Notion content: ${deleteError.message}`);
+    }
+    console.log('Existing Notion content deleted successfully');
+
     // Get the user's Notion access token from profiles
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
