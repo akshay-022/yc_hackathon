@@ -515,45 +515,124 @@ function Home() {
                         />
                       </div>
 
-                      <div>
-                        <p className="text-sm text-gray-400 mb-1">API Endpoint:</p>
-                        <input
-                          type="text"
-                          value={`${backendUrl}/functions/v1/public-chat`}
-                          readOnly
-                          className="w-full bg-gray-900 text-white p-2 rounded border border-gray-700 text-sm font-mono"
-                          onClick={e => e.target.select()}
-                        />
-                      </div>
+                      <details className="group">
+                        <summary className="text-sm text-gray-400 cursor-pointer hover:text-gray-300 flex items-center gap-2">
+                          <svg 
+                            className="w-4 h-4 transform group-open:rotate-90 transition-transform" 
+                            fill="none" 
+                            stroke="currentColor" 
+                            viewBox="0 0 24 24"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                          API Endpoint Example (Can embed in your own website)
+                        </summary>
+                        
+                        <div className="mt-2 space-y-2 pl-6">
+                          <div>
+                            <p className="text-sm text-gray-400 mb-1">API Endpoint:</p>
+                            <input
+                              type="text"
+                              value={`${backendUrl}/functions/v1/public-chat`}
+                              readOnly
+                              className="w-full bg-gray-900 text-white p-2 rounded border border-gray-700 text-sm font-mono"
+                              onClick={e => e.target.select()}
+                            />
+                          </div>
 
-                      <div>
-                        <p className="text-sm text-gray-400 mb-1">Example Request:</p>
-                        <pre className="w-full bg-gray-900 text-white p-2 rounded border border-gray-700 text-sm font-mono overflow-x-auto whitespace-pre-wrap">
+                          <div>
+                            <p className="text-sm text-gray-400 mb-1">Example Request:</p>
+                            <pre className="w-full bg-gray-900 text-white p-2 rounded border border-gray-700 text-sm font-mono overflow-x-auto whitespace-pre-wrap">
 {`fetch('${backendUrl}/functions/v1/public-chat', {
   method: 'POST',
-  headers: {
-    'Content-Type': 'application/json'
-  },
+  headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
-    user_id: "${publicUrl.split('/').pop()}", // Your user ID
-    content: "Your message here"
+    user_id: "${publicUrl.split('/').pop()}",
+    content: "Your message here",
+    conversation_id: null  // Optional: Include to continue an existing conversation
   })
 })`}
-                        </pre>
-                      </div>
+                            </pre>
+                          </div>
 
-                      <div>
-                        <p className="text-sm text-gray-400 mb-1">Response Format:</p>
-                        <pre className="w-full bg-gray-900 text-white p-2 rounded border border-gray-700 text-sm font-mono overflow-x-auto whitespace-pre-wrap">
+                          <div>
+                            <p className="text-sm text-gray-400 mb-1">Example Response:</p>
+                            <pre className="w-full bg-gray-900 text-white p-2 rounded border border-gray-700 text-sm font-mono overflow-x-auto whitespace-pre-wrap">
 {`{
   "reply": {
-    "content": "AI response content",
-    "conversation_id": "CONVERSATION_ID",
-    "is_bot": true
+    "content": "Response from AI persona.",
+    "conversation_id": 18742,
+    "is_bot": true,
+    "created_at": "2024-11-26T23:37:18.240Z"
   }
 }`}
-                        </pre>
-                      </div>
+                            </pre>
+                          </div>
+                        </div>
+                      </details>
+
+                      <details className="group">
+                        <summary className="text-sm text-gray-400 cursor-pointer hover:text-gray-300 flex items-center gap-2">
+                          <svg 
+                            className="w-4 h-4 transform group-open:rotate-90 transition-transform" 
+                            fill="none" 
+                            stroke="currentColor" 
+                            viewBox="0 0 24 24"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                          Quick Implementation Example
+                        </summary>
+                        
+                        <div className="mt-2 pl-6">
+                          <pre className="w-full bg-gray-900 text-white p-2 rounded border border-gray-700 text-sm font-mono overflow-x-auto whitespace-pre-wrap">
+{`<!-- Add this where you want the chat to appear -->
+<div id="chat">
+  <div id="messages"></div>
+  <input id="input" placeholder="Type message...">
+  <button onclick="send()">Send</button>
+</div>
+
+<script>
+let conversationId = null;  // Store conversation ID
+
+async function send() {
+  const input = document.getElementById('input');
+  const msg = input.value;
+  input.value = '';
+  
+  addMessage(msg, 'user');
+  
+  const res = await fetch('${backendUrl}/functions/v1/public-chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      user_id: "${publicUrl.split('/').pop()}",
+      content: msg,
+      conversation_id: conversationId
+    })
+  });
+  
+  const data = await res.json();
+  conversationId = data.reply.conversation_id;
+  addMessage(data.reply.content, 'ai');
+}
+
+function addMessage(text, from) {
+  const messages = document.getElementById('messages');
+  messages.innerHTML += \`<div class="\${from}">\${text}</div>\`;
+}
+</script>
+
+<style>
+#chat { width: 300px; border: 1px solid #ccc; }
+#messages { height: 300px; overflow-y: auto; }
+.user { text-align: right; }
+.ai { text-align: left; }
+</style>`}
+                          </pre>
+                        </div>
+                      </details>
                     </div>
                   )}
                 </div>
