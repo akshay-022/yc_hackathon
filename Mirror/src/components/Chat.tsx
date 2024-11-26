@@ -32,6 +32,7 @@ function Chat({ hasUserContent, username }: ChatProps) {
   const [newTitle, setNewTitle] = useState<string>('');
   const backendUrl = useBackend();
   const inputRef = useRef<HTMLInputElement | null>(null); // Reference for the input field
+  const [isConversationsLoading, setIsConversationsLoading] = useState(false);
 
   useEffect(() => {
     const fetchUserId = async () => {
@@ -43,22 +44,67 @@ function Chat({ hasUserContent, username }: ChatProps) {
   }, []);
 
   useEffect(() => {
+    const initializeConversation = async () => {
+      if (!userId || conversations.length === 0) return;
+      
+      // If no conversation is selected, select the most recent one
+      if (!selectedConversationId) {
+        const mostRecent = conversations[conversations.length - 1];
+        setSelectedConversationId(mostRecent.id);
+      }
+    };
+
+    initializeConversation();
+  }, [userId, conversations]);
+
+  useEffect(() => {
     const fetchConversations = async () => {
+      if (!userId) return;
+      
       try {
+        setIsConversationsLoading(true);
         const { data, error } = await supabase
           .from('conversations')
           .select('*')
           .eq('source_user_id', userId)
-          .eq('target_user_id', userId);
+          .eq('target_user_id', userId)
+          .order('created_at', { ascending: false });
+
         if (error) throw error;
-        setConversations(data);
+
+        if (!data || data.length === 0) {
+          const { data: newConversation, error: createError } = await supabase
+            .from('conversations')
+            .insert([
+              { 
+                source_user_id: userId,
+                target_user_id: userId,
+                title: `New Chat ${new Date().toLocaleString()}`
+              }
+            ])
+            .select()
+            .single();
+
+          if (createError) throw createError;
+          setConversations([newConversation]);
+          setSelectedConversationId(newConversation.id);
+          setNewTitle(newConversation.title);
+        } else {
+          setConversations(data);
+          if (!selectedConversationId) {
+            setSelectedConversationId(data[0].id);
+            setNewTitle(data[0].title);
+          }
+        }
       } catch (error) {
-        console.error('Error fetching conversations:', error.message);
+        console.error('Error fetching/creating conversations:', error);
+      } finally {
+        setIsConversationsLoading(false);
       }
     };
 
     fetchConversations();
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
     const fetchMessages = async () => {
@@ -79,62 +125,55 @@ function Chat({ hasUserContent, username }: ChatProps) {
   }, [selectedConversationId]);
 
   const handleSendMessage = async () => {
-    if (message.trim() === '' || isSending) return;
-
-    console.log('Attempting to send message:', message);
+    if (message.trim() === '' || isSending || !selectedConversationId) return;
 
     try {
       setIsSending(true);
       setIsLoadingReply(true);
 
-      // Add the user's message to the chat window
       const userMessage = {
-        id: Date.now(), // Temporary ID for rendering
+        id: Date.now(),
         content: message,
         is_bot: false,
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
+        conversation_id: selectedConversationId
       };
-      setMessages((prevMessages) => [...prevMessages, userMessage]);
+
+      setMessages(prevMessages => [...prevMessages, userMessage]);
       setMessage('');
 
-      // Use Supabase Edge Function for processing
       const { data: responseData, error: responseError } = await supabase.functions.invoke('anthropic', {
-        body: { content: message, sourceUserId: userId, targetUserId: userId, conversationId: selectedConversationId },
+        body: { 
+          content: message, 
+          sourceUserId: userId, 
+          targetUserId: userId, 
+          conversationId: selectedConversationId
+        },
       });
 
       if (responseError) throw responseError;
 
-      const botResponseContent = responseData.botResponseContent;
-      const newConversationId = responseData.conversationId;
-      const userMessageId = responseData.userMessageId;
-      const botMessageId = responseData.botMessageId;
-      console.log('Generated bot response:', botResponseContent);
-
-      // Update the conversation ID if a new one was created
-      if (!selectedConversationId) {
-        setSelectedConversationId(newConversationId);
-        setConversations((prevConversations) => [
-          ...prevConversations,
-          { id: newConversationId, title: `Conversation ${newConversationId}`, created_at: new Date().toISOString() }
-        ]);
+      if (responseData?.userMessageId) {
+        setMessages(prevMessages => {
+          const updatedMessages = [...prevMessages];
+          const lastMessage = updatedMessages[updatedMessages.length - 1];
+          if (lastMessage && !lastMessage.is_bot) {
+            lastMessage.id = responseData.userMessageId;
+          }
+          return updatedMessages;
+        });
       }
-      // Update the last message with the correct ID
-      setMessages((prevMessages) => {
-        const updatedMessages = [...prevMessages];
-        updatedMessages[updatedMessages.length - 1].id = userMessageId;
-        return updatedMessages;
-      });
 
-      // Insert the bot's response into the messages table
-      const botMessage = {
-        id: botMessageId, // Use the ID from the response
-        content: botResponseContent,
-        conversation_id: newConversationId,
-        is_bot: true,
-        created_at: new Date().toISOString()
-      };
-
-      setMessages((prevMessages) => [...prevMessages, botMessage]);
+      if (responseData?.botResponseContent) {
+        const botMessage = {
+          id: responseData.botMessageId,
+          content: responseData.botResponseContent,
+          conversation_id: selectedConversationId,
+          is_bot: true,
+          created_at: new Date().toISOString()
+        };
+        setMessages(prevMessages => [...prevMessages, botMessage]);
+      }
 
     } catch (error) {
       console.error('Error sending message:', error);
@@ -151,31 +190,71 @@ function Chat({ hasUserContent, username }: ChatProps) {
     }
   };
 
-  const handleNewConversation = () => {
-    setSelectedConversationId(null);
-    setMessages([]);
+  const handleNewConversation = async () => {
+    if (!userId) return;
+
+    try {
+      setIsConversationsLoading(true);
+      const newTitle = `New Chat ${new Date().toLocaleString()}`;
+      
+      const { data: conversationData, error: conversationError } = await supabase
+        .from('conversations')
+        .insert([
+          { 
+            source_user_id: userId,
+            target_user_id: userId,
+            title: newTitle
+          }
+        ])
+        .select()
+        .single();
+
+      if (conversationError) throw conversationError;
+
+      const newConversation = {
+        id: conversationData.id,
+        title: conversationData.title,
+        created_at: conversationData.created_at
+      };
+
+      setConversations(prev => [newConversation, ...prev]);
+      setSelectedConversationId(newConversation.id);
+      setNewTitle(newConversation.title);
+      setMessages([]);
+    } catch (error) {
+      console.error('Error creating new conversation:', error);
+    } finally {
+      setIsConversationsLoading(false);
+    }
   };
 
   const handleRenameConversation = async (e: React.KeyboardEvent<HTMLInputElement>, conversationId: number) => {
-    
-    if (e.key === 'Enter' && newTitle.trim() !== '') {
-      try {
-        const { error } = await supabase
-          .from('conversations')
-          .update({ title: newTitle })
-          .eq('id', conversationId)
-          .eq('sourceUserId', userId)
-          .eq('targetUserId', userId);
-        if (error) throw error;
+    if (e.key !== 'Enter') return;
+    if (!userId || !newTitle.trim()) return;
 
-        // Update local state
-        setConversations((prev) =>
-          prev.map((conv) => (conv.id === conversationId ? { ...conv, title: newTitle } : conv))
-        );
-        setNewTitle(''); // Clear the input after renaming
-      } catch (error) {
-        console.error('Error renaming conversation:', error);
-      }
+    try {
+      const { error } = await supabase
+        .from('conversations')
+        .update({ title: newTitle.trim() })
+        .eq('id', conversationId)
+        .eq('source_user_id', userId);
+
+      if (error) throw error;
+
+      // Update local state
+      setConversations(prevConversations => 
+        prevConversations.map(conv => 
+          conv.id === conversationId 
+            ? { ...conv, title: newTitle.trim() }
+            : conv
+        )
+      );
+
+      // Remove focus from input
+      (e.target as HTMLInputElement).blur();
+
+    } catch (error) {
+      console.error('Error renaming conversation:', error);
     }
   };
 
@@ -187,21 +266,22 @@ function Chat({ hasUserContent, username }: ChatProps) {
         .eq('id', conversationId);
       if (error) throw error;
 
-      // Update local state
       setConversations((prev) => prev.filter((conv) => conv.id !== conversationId));
       if (selectedConversationId === conversationId) {
-        setSelectedConversationId(null); // Deselect if the deleted conversation was selected
+        setSelectedConversationId(null);
       }
     } catch (error) {
       console.error('Error deleting conversation:', error);
     }
   };
 
-  // Handle click outside to deselect conversation
   const handleClickOutside = (event: MouseEvent) => {
     if (inputRef.current && !inputRef.current.contains(event.target as Node)) {
-      setSelectedConversationId(null);
-      setNewTitle(''); // Clear the title when deselected
+      // Reset the title to the current conversation title
+      const currentConversation = conversations.find(conv => conv.id === selectedConversationId);
+      if (currentConversation) {
+        setNewTitle(currentConversation.title);
+      }
     }
   };
 
@@ -210,7 +290,7 @@ function Chat({ hasUserContent, username }: ChatProps) {
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, []);
+  }, [conversations, selectedConversationId]);
 
   return (
     <div className="h-full flex flex-col bg-gray-900 rounded-lg overflow-hidden">
@@ -224,18 +304,20 @@ function Chat({ hasUserContent, username }: ChatProps) {
                 <li
                   key={conversation.id}
                   className={`p-3 rounded-md cursor-pointer transition-colors relative ${
+                    isConversationsLoading ? 'opacity-50' : ''
+                  } ${
                     conversation.id === selectedConversationId 
                       ? 'bg-blue-600 text-white' 
                       : 'bg-gray-800 text-gray-200 hover:bg-gray-700'
                   }`}
                   onClick={() => {
                     setSelectedConversationId(conversation.id);
-                    setNewTitle(conversation.title); // Set the title for editing
+                    setNewTitle(conversation.title);
                   }}
                 >
                   <div className="truncate">
                     <input
-                      ref={inputRef} // Attach the ref to the input
+                      ref={inputRef}
                       type="text"
                       value={conversation.id === selectedConversationId ? newTitle : conversation.title}
                       onChange={(e) => setNewTitle(e.target.value)}
@@ -251,7 +333,7 @@ function Chat({ hasUserContent, username }: ChatProps) {
                   </div>
                   <button
                     onClick={(e) => {
-                      e.stopPropagation(); // Prevent triggering the onClick of the list item
+                      e.stopPropagation();
                       handleDeleteConversation(conversation.id);
                     }}
                     className="absolute top-2 right-2 text-red-500 hover:text-red-700"

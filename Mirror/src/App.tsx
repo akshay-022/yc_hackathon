@@ -6,6 +6,7 @@ import LoginDesign from './components/LoginDesign';
 
 function App() {
   const [isSignUp, setIsSignUp] = useState(false);
+  const [signUpSuccess, setSignUpSuccess] = useState(false);
   const navigate = useNavigate();
   const [gradientPosition, setGradientPosition] = useState({ x: 50, y: 50 });
   const [gradientSize, setGradientSize] = useState(50);
@@ -14,11 +15,10 @@ function App() {
     navigate('/home');
   };
 
-  const handleSignUpSuccess = () => {
-    console.log('Sign up successful!');
-  };
-
   const toggleAuthMode = () => {
+    if (isSignUp) {
+      setSignUpSuccess(true);
+    }
     setIsSignUp((prev) => !prev);
   };
 
@@ -41,9 +41,18 @@ function App() {
       <div className="w-[40%] min-w-[500px] bg-black-secondary min-h-screen flex items-center justify-center p-12 border-l border-gray-800">
         <div className="w-full max-w-[440px] space-y-8">
           {isSignUp ? (
-            <SignUp onAuthSuccess={handleAuthSuccess} onSignUpSuccess={handleSignUpSuccess} />
+            <SignUp 
+              onAuthSuccess={handleAuthSuccess} 
+              onSignUpSuccess={() => setSignUpSuccess(true)}
+              onSwitchToSignIn={toggleAuthMode} 
+            />
           ) : (
-            <SignIn onAuthSuccess={handleAuthSuccess} onSwitchToSignUp={toggleAuthMode} />
+            <SignIn 
+              onAuthSuccess={handleAuthSuccess} 
+              onSwitchToSignUp={toggleAuthMode}
+              showSuccessMessage={signUpSuccess}
+              onSuccessMessageDismiss={() => setSignUpSuccess(false)}
+            />
           )}
 
           <div className="mt-6 text-center">

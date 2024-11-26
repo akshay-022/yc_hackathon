@@ -27,6 +27,7 @@ function Home() {
     localStorage.getItem('isReconnectingTwitter') === 'true'
   );
   const [isLoading, setIsLoading] = useState(true);
+  const [authError, setAuthError] = useState<string>('');
 
   const createProfile = async (user: any, metadata: any, session: any) => {
     try {
@@ -105,50 +106,40 @@ function Home() {
           
           setAuthStatus(status);
 
-
+          
         }
+        if (session?.provider_token) {
+          const isNotionToken = session.provider_token.startsWith('ntn_');
+          const isTwitterToken = /^\d+-/.test(session.provider_token);
 
-        const isNotionToken = session.provider_token.startsWith('ntn_');
-        const isTwitterToken = /^\d+-/.test(session.provider_token);
+          console.log('Is Notion Token:', isNotionToken);
+          console.log('Is Twitter Token:', isTwitterToken);
 
-        console.log('Is Notion Token:', isNotionToken);
-        console.log('Is Twitter Token:', isTwitterToken);
-
-        if (user.identities) {
-          const status = {
-            twitter: user.identities.some((id: any) => id.provider === 'twitter'),
-            notion: user.identities.some((id: any) => id.provider === 'notion')
-          };
-          console.log('Auth status:', status);
-          setAuthStatus(status);
-
+          if (user.identities) {
+            const status = {
+              twitter: user.identities.some((id: any) => id.provider === 'twitter'),
+              notion: user.identities.some((id: any) => id.provider === 'notion')
+            };
+            console.log('Auth status:', status);
+            setAuthStatus(status);
+          console.log(user.user_metadata)
           if (isTwitterToken) {
-            await createProfile(user, user.user_metadata, session);
-            
-            const { data: profile } = await supabase
+            const twitterIdentity = user.identities?.find(
+              (identity: any) => identity.provider === 'twitter'
+            );
+            const { error: updateError } = await supabase
               .from('profiles')
-              .select('twitter_username')
-              .eq('id', user.id)
-              .single();
+              .update({ 
+                twitter_username: user.user_metadata?.user_name || twitterIdentity?.identity_data?.user_name || null,
+                twitter_access_token: session?.provider_token || null,
+                twitter_refresh_token: session?.provider_refresh_token || null,
+                twitter_token_expires_at: session?.expires_at ? null : null,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', user.id);
 
-            const twitterUsername = user.user_metadata?.user_name || 
-                                  user.user_metadata?.preferred_username;
-
-            if (twitterUsername) {
-              const { error: updateError } = await supabase
-                .from('profiles')
-                .update({ 
-                  twitter_username: twitterUsername,
-                  twitter_access_token: session?.provider_token || null,
-                  twitter_refresh_token: session?.provider_refresh_token || null,
-                  twitter_token_expires_at: session?.expires_at ? null : null,
-                  updated_at: new Date().toISOString()
-                })
-                .eq('id', user.id);
-
-              if (updateError) console.error('Error updating Twitter username and token:', updateError);
-              else console.log('Twitter username and token updated successfully:', twitterUsername);
-            }
+            if (updateError) console.error('Error updating Twitter tokens:', updateError);
+            else console.log('Twitter tokens updated successfully');
           }
 
           if (isNotionToken) {
@@ -174,6 +165,7 @@ function Home() {
             }
           }
         }
+      }
 
         const { data: profile } = await supabase
           .from('profiles')
@@ -254,46 +246,26 @@ function Home() {
 
   const handleTwitterAuth = async () => {
     try {
-      if (authStatus.twitter) {
-        // Set reconnecting state without changing UI
-        localStorage.setItem('isReconnectingTwitter', 'true');
-        
-        // Start new OAuth flow first
-        const { data, error } = await supabase.auth.signInWithOAuth({
-          provider: 'twitter',
-          options: {
-            redirectTo: `${window.location.origin}/home`,
-            skipBrowserRedirect: true,
-          }
-        });
-
-        if (error) throw error;
-        
-        if (data?.url) {
-          // Store current identity info for cleanup after redirect
-          const { data: { identities } } = await supabase.auth.getUserIdentities();
-          const twitterIdentity = identities?.find((identity) => identity.provider === 'twitter');
-          if (twitterIdentity) {
-            localStorage.setItem('twitterIdentityToUnlink', JSON.stringify(twitterIdentity));
-          }
-
-          // Redirect to Twitter OAuth
-          window.location.href = data.url;
+      // First try to link
+      const { data, error } = await supabase.auth.linkIdentity({
+        provider: 'twitter',
+        options: {
+          redirectTo: `${window.location.origin}/home`
         }
-      } else {
-        // First time linking - normal flow
-        const { data, error } = await supabase.auth.signInWithOAuth({
-          provider: 'twitter',
-          options: {
-            redirectTo: `${window.location.origin}/home`
-          }
-        });
-        if (error) throw error;
+      });
+
+      if (error) {
+        // Show error message to user
+        setAuthError('This Twitter account is already linked to another user. Please use a different Twitter account or unlink it from the other user first.');
+        console.log(error)
+        return;
       }
-    } catch (error) {
+
+      if (error) throw error;
+      if (data?.url) window.location.href = data.url;
+      
+    } catch (error: any) {
       console.error('Twitter auth error:', error.message);
-      localStorage.removeItem('isReconnectingTwitter');
-      localStorage.removeItem('twitterIdentityToUnlink');
       setAuthStatus(prev => ({ ...prev, twitter: false }));
     }
   };
@@ -301,44 +273,38 @@ function Home() {
   const handleNotionAuth = async () => {
     try {
       if (authStatus.notion) {
-        // Set reconnecting state without changing UI
-        localStorage.setItem('isReconnectingNotion', 'true');
+        // Get current identity before unlinking
+        const { data: { identities } } = await supabase.auth.getUserIdentities();
+        const notionIdentity = identities?.find((identity) => identity.provider === 'notion');
+        
+        if (notionIdentity) {
+          // Unlink existing identity
+          await supabase.auth.unlinkIdentity(notionIdentity);
+        }
 
-        // Start new OAuth flow first without unlinking
-        const { data, error } = await supabase.auth.signInWithOAuth({
+        // Start new OAuth flow
+        const { data, error } = await supabase.auth.linkIdentity({
           provider: 'notion',
           options: {
-            redirectTo: `${window.location.origin}/home`,
-            skipBrowserRedirect: true,
+            redirectTo: `${window.location.origin}/home`
           }
         });
 
         if (error) throw error;
-        
-        if (data?.url) {
-          // Store current identity info for cleanup after redirect
-          const { data: { identities } } = await supabase.auth.getUserIdentities();
-          const notionIdentity = identities?.find((identity) => identity.provider === 'notion');
-          if (notionIdentity) {
-            localStorage.setItem('notionIdentityToUnlink', JSON.stringify(notionIdentity));
-          }
-
-          // Redirect to Notion OAuth
-          window.location.href = data.url;
-        }
+        if (data?.url) window.location.href = data.url;
       } else {
         // First time linking - normal flow
-        const { data, error } = await supabase.auth.signInWithOAuth({
+        const { data, error } = await supabase.auth.linkIdentity({
           provider: 'notion',
           options: {
             redirectTo: `${window.location.origin}/home`
           }
         });
         if (error) throw error;
+        if (data?.url) window.location.href = data.url;
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Notion auth error:', error.message);
-      localStorage.removeItem('notionIdentityToUnlink');
       setAuthStatus(prev => ({ ...prev, notion: false }));
     }
   };

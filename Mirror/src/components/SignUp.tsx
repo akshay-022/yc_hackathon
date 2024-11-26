@@ -13,7 +13,6 @@ function SignUp({ onAuthSuccess, onSwitchToSignIn, onSignUpSuccess = () => {} }:
     try {
       setIsLoading(true);
       setAuthError(null);
-      setIsSuccess(false);
 
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
@@ -38,17 +37,11 @@ function SignUp({ onAuthSuccess, onSwitchToSignIn, onSignUpSuccess = () => {} }:
         ]);
 
       if (profileError) throw profileError;
-
-      setIsSuccess(true);
-      onSignUpSuccess();
       
-      setEmail('');
-      setPassword('');
-      setUsername('');
+      onSwitchToSignIn();
       
     } catch (error: any) {
       setAuthError(error.message);
-      setIsSuccess(false);
     } finally {
       setIsLoading(false);
     }
