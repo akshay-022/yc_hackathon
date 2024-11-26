@@ -11,29 +11,61 @@ function PublicChat() {
   const [isSending, setIsSending] = useState(false);
   const [conversationId, setConversationId] = useState<number | null>(null);
   const [isLoadingReply, setIsLoadingReply] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [currentUsername, setCurrentUsername] = useState('');
+  const [targetUsername, setTargetUsername] = useState('');
+  const [isLoadingUsernames, setIsLoadingUsernames] = useState(true);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setShowAuthModal(true);
+      }
+      setIsLoading(false);
+    };
+    checkAuth();
+  }, []);
 
   useEffect(() => {
     let mounted = true;
 
     async function initializeChat() {
       try {
-        // Fetch chat owner's username without auth check
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('username')
-          .eq('id', userId)
-          .single();
+        // Fetch both usernames concurrently for better performance
+        const [{ data: { user } }, { data: targetProfile }] = await Promise.all([
+          supabase.auth.getUser(),
+          supabase
+            .from('profiles')
+            .select('username')
+            .eq('id', userId)
+            .single()
+        ]);
 
-        if (profile?.username && mounted) {
-          setUsername(profile.username);
+        if (user) {
+          const { data: currentProfile } = await supabase
+            .from('profiles')
+            .select('username')
+            .eq('id', user.id)
+            .single();
+
+          if (mounted) {
+            setCurrentUsername(currentProfile?.username || 'You');
+            setTargetUsername(targetProfile?.username || 'User');
+            setIsLoadingUsernames(false);
+          }
         }
 
-       
         const { data: newConv } = await supabase
         .from('conversations')
         .insert([{ 
             target_user_id: userId, 
-            title: `Public Chat with ${profile?.username || 'User'}`
+            title: `Chat between ${currentProfile?.username || 'User'} and ${targetProfile?.username || 'User'}`
         }])
         .select()
         .single();
@@ -144,6 +176,149 @@ function PublicChat() {
     }
   };
 
+  const handleSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError(null);
+    setIsAuthenticating(true);
+
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (error) throw error;
+      setShowAuthModal(false);
+    } catch (error: any) {
+      setAuthError(error.message);
+    } finally {
+      setIsAuthenticating(false);
+    }
+  };
+
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError(null);
+    setIsAuthenticating(true);
+
+    try {
+      // 1. Create auth user
+      const { data: authData, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            username, // Add username to auth metadata
+          },
+        },
+      });
+
+      if (signUpError) throw signUpError;
+      if (!authData.user) throw new Error('No user data returned');
+
+      // 2. Create profile in database
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert([
+          {
+            id: authData.user.id,
+            username,
+            email,
+            updated_at: new Date().toISOString(),
+          },
+        ]);
+
+      if (profileError) throw profileError;
+
+      setIsSignUp(false); // Switch back to sign in
+      setAuthError('Account created! Please sign in.');
+    } catch (error: any) {
+      setAuthError(error.message);
+    } finally {
+      setIsAuthenticating(false);
+    }
+  };
+
+  if (showAuthModal) {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center p-4">
+        <div className="bg-gray-800 p-8 rounded-lg shadow-lg max-w-md w-full">
+          <h2 className="text-2xl font-bold mb-6 text-center">
+            {isSignUp ? 'Create Account' : 'Sign in'} to chat with {username}
+          </h2>
+          
+          <form onSubmit={isSignUp ? handleSignUp : handleSignIn} className="space-y-4">
+            {isSignUp && (
+              <div>
+                <label className="block text-sm font-medium mb-2">Username</label>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value.toLowerCase())}
+                  className="w-full bg-gray-700 text-white p-3 rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+            )}
+            
+            <div>
+              <label className="block text-sm font-medium mb-2">Email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full bg-gray-700 text-white p-3 rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium mb-2">Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full bg-gray-700 text-white p-3 rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+
+            {authError && (
+              <div className="p-3 bg-red-500/20 border border-red-500/30 rounded text-red-200 text-sm">
+                {authError}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={isAuthenticating}
+              className="w-full bg-blue-600 text-white py-3 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {isAuthenticating ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>{isSignUp ? 'Creating Account...' : 'Signing in...'}</span>
+                </>
+              ) : (
+                isSignUp ? 'Create Account' : 'Sign in'
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsSignUp(!isSignUp)}
+              className="w-full text-blue-400 hover:text-blue-300 transition-colors text-sm mt-4"
+            >
+              {isSignUp 
+                ? 'Already have an account? Sign in' 
+                : "Don't have an account? Sign up"}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
@@ -159,7 +334,18 @@ function PublicChat() {
       <div className="max-w-4xl mx-auto">
         <div className="bg-gray-800 rounded-lg shadow-lg p-4">
           <div className="text-center mb-4">
-            <h1 className="text-2xl font-bold">Chat with {username}</h1>
+            {isLoadingUsernames ? (
+              <div className="flex items-center justify-center gap-2">
+                <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                <h1 className="text-2xl font-bold text-gray-300">
+                  Loading chat details...
+                </h1>
+              </div>
+            ) : (
+              <h1 className="text-2xl font-bold">
+                {currentUsername} chatting with {targetUsername}
+              </h1>
+            )}
             <p className="text-gray-400 text-sm mt-1">Public Mirror Chat</p>
           </div>
 
