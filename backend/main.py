@@ -406,7 +406,7 @@ async def process_content(request: ContentRequest):
         logger.error(f"Error processing content: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/process-message-public")
+@app.post("/functions/v1/public-chat")
 async def process_message_public(request: Request):
     try:
         body = await request.json()

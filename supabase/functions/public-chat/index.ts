@@ -18,7 +18,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { user_id, content, conversation_id } = await req.json();
+    const { user_id, content } = await req.json();
 
     // Validate required fields
     if (!user_id || !content) {
@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
         content,
         sourceUserId: null,  // null for public chat
         targetUserId: user_id,
-        conversationId: conversation_id
+        conversationId: null  // Always null for public chat
       }
     });
 

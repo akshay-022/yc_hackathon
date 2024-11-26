@@ -345,7 +345,7 @@ function Home() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No user found');
 
-      const response = await fetch('http://localhost:8000/api/process-content', {
+      const response = await fetch('https://tznrpdmwzpuispggvpdk.supabase.co/api/process-content', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -519,7 +519,7 @@ function Home() {
                         <p className="text-sm text-gray-400 mb-1">API Endpoint:</p>
                         <input
                           type="text"
-                          value={`${backendUrl}/api/process-message-public`}
+                          value={`${backendUrl}/functions/v1/public-chat`}
                           readOnly
                           className="w-full bg-gray-900 text-white p-2 rounded border border-gray-700 text-sm font-mono"
                           onClick={e => e.target.select()}
@@ -529,7 +529,7 @@ function Home() {
                       <div>
                         <p className="text-sm text-gray-400 mb-1">Example Request:</p>
                         <pre className="w-full bg-gray-900 text-white p-2 rounded border border-gray-700 text-sm font-mono overflow-x-auto whitespace-pre-wrap">
-{`fetch('${backendUrl}/api/process-message-public', {
+{`fetch('${backendUrl}/functions/v1/public-chat', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json'
