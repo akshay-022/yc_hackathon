@@ -7,7 +7,7 @@ function AddContent({ hasUserContent }: { hasUserContent: boolean }) {
   const [content, setContent] = useState('');
   const [userId, setUserId] = useState<string | null>(null);
   const [documents, setDocuments] = useState<any[]>([]);
-  const [isRecording, setIsRecording] = useState(false);
+  const [isRecording, setIsRecording] = useState<false | 'recording'>(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const backendUrl = useBackend();
   const micButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -117,42 +117,77 @@ function AddContent({ hasUserContent }: { hasUserContent: boolean }) {
   };
 
   const startRecording = () => {
-    if (!('webkitSpeechRecognition' in window)) {
-      alert('Your browser does not support speech recognition. Please use Chrome.');
+    if (!('SpeechRecognition' in window) && !('webkitSpeechRecognition' in window)) {
+      alert('Your browser does not support speech recognition. Please use Chrome or Safari.');
+      setIsRecording(false);
       return;
     }
 
-    const SpeechRecognition = window.webkitSpeechRecognition || window.SpeechRecognition;
-    const recognition = new SpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = 'en-US';
+    // Reset state first
+    setIsRecording(false);
+    
+    // Stop any existing recognition instance
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
+    }
 
-    recognition.onstart = () => {
-      setIsRecording(true);
-    };
+    try {
+      const SpeechRecognition = (window.SpeechRecognition || window.webkitSpeechRecognition);
+      const recognition = new SpeechRecognition();
 
-    recognition.onresult = (event) => {
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+      recognition.maxAlternatives = 1;
+
       let finalTranscript = '';
-      for (let i = event.resultIndex; i < event.results.length; ++i) {
-        if (event.results[i].isFinal) {
-          finalTranscript += event.results[i][0].transcript;
+      let interimTranscript = '';
+
+      recognition.onstart = () => {
+        console.log('Recognition started');
+        setIsRecording('recording');
+        finalTranscript = content;
+        interimTranscript = '';
+      };
+
+      recognition.onresult = (event) => {
+        interimTranscript = '';
+        
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          
+          if (event.results[i].isFinal) {
+            finalTranscript += ' ' + transcript;
+          } else {
+            interimTranscript += transcript;
+          }
         }
-      }
-      setContent((prevContent) => prevContent + finalTranscript);
-    };
 
-    recognition.onend = () => {
+        // Set content with both final and interim results
+        setContent((finalTranscript + ' ' + interimTranscript).trim());
+      };
+
+      recognition.onerror = (event) => {
+        console.error('Speech recognition error:', event.error);
+        setIsRecording(false);
+        recognitionRef.current?.stop();
+        recognitionRef.current = null;
+      };
+
+      recognition.onend = () => {
+        console.log('Recognition ended');
+        setIsRecording(false);
+        recognitionRef.current = null;
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch (error) {
+      console.error('Error starting speech recognition:', error);
       setIsRecording(false);
-    };
-
-    recognition.onerror = (event) => {
-      console.error('Speech recognition error:', event.error);
-      setIsRecording(false);
-    };
-
-    recognitionRef.current = recognition;
-    recognition.start();
+      recognitionRef.current = null;
+    }
   };
 
   const stopRecording = () => {
@@ -163,7 +198,9 @@ function AddContent({ hasUserContent }: { hasUserContent: boolean }) {
 
   useEffect(() => {
     const handleMouseUpOrLeave = () => {
-      stopRecording();
+      if (recognitionRef.current) {
+        stopRecording();
+      }
     };
 
     const micButton = micButtonRef.current;
@@ -177,6 +214,11 @@ function AddContent({ hasUserContent }: { hasUserContent: boolean }) {
         micButton.removeEventListener('mouseleave', handleMouseUpOrLeave);
         micButton.removeEventListener('mouseup', handleMouseUpOrLeave);
       }
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+        recognitionRef.current = null;
+      }
+      setIsRecording(false);
     };
   }, []);
 
