@@ -204,14 +204,11 @@ function PublicChat() {
 
       if (error) throw error;
       
-      // Clear auth modal and trigger chat initialization
-      setShowAuthModal(false);
-      setIsLoadingUsernames(true); // Reset username loading state
-      initializeChat(); // Re-initialize chat after successful sign in
+      // Force a page reload after successful sign in
+      window.location.reload();
       
     } catch (error: any) {
       setAuthError(error.message);
-    } finally {
       setIsAuthenticating(false);
     }
   };
