@@ -181,7 +181,7 @@ function AddContent({ hasUserContent }: { hasUserContent: boolean }) {
   }, []);
 
   return (
-    <div className="bg-gray-800 p-6 rounded-lg shadow-md">
+    <div className="bg-gray-800 p-6 rounded-lg shadow-md w-full h-[982px] flex flex-col">
       <h2 className="text-xl font-semibold text-white mb-4">Add New Content</h2>
       <textarea
         value={content}
@@ -206,7 +206,7 @@ function AddContent({ hasUserContent }: { hasUserContent: boolean }) {
           </svg>
         </div>
       </div>
-      <div className="flex gap-2">
+      <div className="flex gap-2 mb-6">
         <button
           onClick={handleSubmit}
           disabled={isRecording || isSubmitting}
@@ -230,26 +230,28 @@ function AddContent({ hasUserContent }: { hasUserContent: boolean }) {
         </button>
       </div>
 
-      <div className="mt-6">
+      <div className="flex-1 min-h-0">
         <h3 className="text-lg font-semibold text-white mb-2">Your Documents</h3>
-        <ul className="list-disc list-inside text-white">
-          {documents.map((doc, index) => (
-            <li key={index} className="mb-1 flex justify-between items-center">
-              <div>
-                <span>{doc.summary}</span>
-                <span className="text-gray-400 text-sm ml-2">
-                  {new Date(doc.created_at).toLocaleDateString()}
-                </span>
-              </div>
-              <button
-                onClick={() => handleRemoveDocument(doc.id)}
-                className="text-red-500 hover:text-red-700 ml-4"
-              >
-                Remove
-              </button>
-            </li>
-          ))}
-        </ul>
+        <div className="h-[calc(100%-2rem)] overflow-y-auto pr-2">
+          <ul className="list-disc list-inside text-white space-y-2">
+            {documents.map((doc, index) => (
+              <li key={index} className="flex justify-between items-start py-2 hover:bg-gray-700/50 rounded px-2">
+                <div className="flex-1 min-w-0">
+                  <span className="block text-sm break-words">{doc.summary}</span>
+                  <span className="text-gray-400 text-xs">
+                    {new Date(doc.created_at).toLocaleDateString()}
+                  </span>
+                </div>
+                <button
+                  onClick={() => handleRemoveDocument(doc.id)}
+                  className="text-red-500 hover:text-red-700 ml-4 shrink-0"
+                >
+                  Remove
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
     </div>
   );
