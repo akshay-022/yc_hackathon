@@ -21,6 +21,8 @@ function PublicChat() {
   const [targetUsername, setTargetUsername] = useState('');
   const [isLoadingUsernames, setIsLoadingUsernames] = useState(true);
   const [currentProfileId, setCurrentProfileId] = useState<string | null>(null);
+  const [name, setName] = useState('');
+
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -37,7 +39,13 @@ function PublicChat() {
 
     async function initializeChat() {
       try {
-        // Fetch both usernames concurrently for better performance
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          setIsLoading(false);
+          setIsLoadingUsernames(false);
+          return;
+        }
+
         const [{ data: { user } }, { data: targetProfile }] = await Promise.all([
           supabase.auth.getUser(),
           supabase
@@ -47,9 +55,11 @@ function PublicChat() {
             .single()
         ]);
         
-        // if target profile does not exist, redirect to home
         if (!targetProfile) {
-          window.location.href = '/';
+          setAuthError('User not found');
+          setIsLoading(false);
+          setIsLoadingUsernames(false);
+          return;
         }
 
         if (user) {
@@ -59,13 +69,9 @@ function PublicChat() {
             .eq('id', user.id)
             .single();
 
-          if (mounted) {
-            setCurrentUsername(currentProfile?.name || 'You');
-            setTargetUsername(targetProfile?.name || 'User');
-            setIsLoadingUsernames(false);
-            setCurrentProfileId(currentProfile?.id);
-          }
-
+          setCurrentUsername(currentProfile?.name || 'You');
+          setTargetUsername(targetProfile?.name || 'User');
+          setCurrentProfileId(currentProfile?.id);
         }
 
         const { data: newConv } = await supabase
@@ -96,10 +102,10 @@ function PublicChat() {
         }
       } catch (error) {
         console.error('Error initializing chat:', error);
+        setAuthError('Error loading chat');
       } finally {
-        if (mounted) {
-          setIsLoading(false);
-        }
+        setIsLoading(false);
+        setIsLoadingUsernames(false);
       }
     }
 
@@ -197,7 +203,12 @@ function PublicChat() {
       });
 
       if (error) throw error;
+      
+      // Clear auth modal and trigger chat initialization
       setShowAuthModal(false);
+      setIsLoadingUsernames(true); // Reset username loading state
+      initializeChat(); // Re-initialize chat after successful sign in
+      
     } catch (error: any) {
       setAuthError(error.message);
     } finally {
@@ -211,13 +222,13 @@ function PublicChat() {
     setIsAuthenticating(true);
 
     try {
-      // 1. Create auth user
       const { data: authData, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
-            username, // Add username to auth metadata
+            username,
+            name,
           },
         },
       });
@@ -225,13 +236,13 @@ function PublicChat() {
       if (signUpError) throw signUpError;
       if (!authData.user) throw new Error('No user data returned');
 
-      // 2. Create profile in database
       const { error: profileError } = await supabase
         .from('profiles')
         .insert([
           {
             id: authData.user.id,
             username,
+            name,
             email,
             updated_at: new Date().toISOString(),
           },
@@ -239,8 +250,8 @@ function PublicChat() {
 
       if (profileError) throw profileError;
 
-      setIsSignUp(false); // Switch back to sign in
-      setAuthError('Account created! Please sign in.');
+      setIsSignUp(false);
+      setAuthError('success:Account created! Please sign in.');
     } catch (error: any) {
       setAuthError(error.message);
     } finally {
@@ -253,21 +264,34 @@ function PublicChat() {
       <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center p-4">
         <div className="bg-gray-800 p-8 rounded-lg shadow-lg max-w-md w-full">
           <h2 className="text-2xl font-bold mb-6 text-center">
-            {isSignUp ? 'Create Account' : 'Sign in'} to chat with {username}
+            {isSignUp ? 'Create Account' : 'Sign in'} to chat
           </h2>
           
           <form onSubmit={isSignUp ? handleSignUp : handleSignIn} className="space-y-4">
             {isSignUp && (
-              <div>
-                <label className="block text-sm font-medium mb-2">Username</label>
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value.toLowerCase())}
-                  className="w-full bg-gray-700 text-white p-3 rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
+              <>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Name</label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full bg-gray-700 text-white p-3 rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-2">Username</label>
+                  <input
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value.toLowerCase())}
+                    className="w-full bg-gray-700 text-white p-3 rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+                </div>
+              </>
             )}
             
             <div>
@@ -293,8 +317,17 @@ function PublicChat() {
             </div>
 
             {authError && (
-              <div className="p-3 bg-red-500/20 border border-red-500/30 rounded text-red-200 text-sm">
-                {authError}
+              <div 
+                className={`p-3 ${
+                  authError.startsWith('success:')
+                    ? 'bg-green-500/20 border border-green-500/30 text-green-200'
+                    : 'bg-red-500/20 border border-red-500/30 text-red-200'
+                } rounded text-sm`}
+              >
+                {authError.startsWith('success:') 
+                  ? authError.substring(8) 
+                  : authError
+                }
               </div>
             )}
 
