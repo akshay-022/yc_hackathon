@@ -92,12 +92,92 @@ function Home() {
           return;
         }
 
+        // Get the user's profile data
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('username')
+          .eq('id', user.id)
+          .single();
+
+        // Set both username and nameofuser
+        const displayUserName = profile?.username || 
+                           user.user_metadata?.user_name || 
+                           user.user_metadata?.preferred_username || 
+                           user.email?.split('@')[0] || 
+                           'User';
+        const displayName = profile?.name || 
+                           user.user_metadata?.name || 
+                           user.name || 
+                           displayUserName;
+                           
+        setUsername(displayUserName);
+        setName(displayName);  // Set nameofuser here
+
         if (user.identities) {
           setAuthStatus({
             twitter: user.identities.some((id: any) => id.provider === 'twitter'),
             notion: user.identities.some((id: any) => id.provider === 'notion')
           });
         }
+
+        if (session?.provider_token) {
+          const isNotionToken = session.provider_token.startsWith('ntn_');
+          const isTwitterToken = /^\d+-/.test(session.provider_token);
+
+          console.log('Is Notion Token:', isNotionToken);
+          console.log('Is Twitter Token:', isTwitterToken);
+
+          if (user.identities) {
+            const status = {
+              twitter: user.identities.some((id: any) => id.provider === 'twitter'),
+              notion: user.identities.some((id: any) => id.provider === 'notion')
+            };
+            console.log('Auth status:', status);
+            setAuthStatus(status);
+          console.log(user.user_metadata)
+          if (isTwitterToken) {
+            const twitterIdentity = user.identities?.find(
+              (identity: any) => identity.provider === 'twitter'
+            );
+            const { error: updateError } = await supabase
+              .from('profiles')
+              .update({ 
+                twitter_username: user.user_metadata?.user_name || twitterIdentity?.identity_data?.user_name || null,
+                twitter_access_token: session?.provider_token || null,
+                twitter_refresh_token: session?.provider_refresh_token || null,
+                twitter_token_expires_at: session?.expires_at ? null : null,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', user.id);
+
+            if (updateError) console.error('Error updating Twitter tokens:', updateError);
+            else console.log('Twitter tokens updated successfully');
+          }
+
+          if (isNotionToken) {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', user.id)
+              .single();
+
+            if (profile) {
+              const { error: updateError } = await supabase
+                .from('profiles')
+                .update({ 
+                  notion_access_token: session?.provider_token || null,
+                  notion_refresh_token: session?.provider_refresh_token || null,
+                  notion_token_expires_at: session?.expires_at ? null : null,
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', user.id);
+
+              if (updateError) console.error('Error updating Notion tokens:', updateError);
+              else console.log('Notion tokens updated successfully');
+            }
+          }
+        }
+      }
         
       } catch (error) {
         console.error('Error checking auth status:', error);
