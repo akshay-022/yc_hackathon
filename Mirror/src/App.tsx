@@ -33,13 +33,15 @@ function App() {
   };
 
   return (
-    <div className="flex w-full min-h-screen bg-black-primary">
+    <div className="flex flex-col lg:flex-row w-full min-h-screen bg-black-primary">
       {/* Left side - Mirror AI Design */}
-      <LoginDesign />
+      <div className="w-full lg:w-[60%]">
+        <LoginDesign />
+      </div>
 
       {/* Right side - Auth Form */}
-      <div className="w-[40%] min-w-[500px] bg-black-secondary min-h-screen flex items-center justify-center p-12 border-l border-gray-800">
-        <div className="w-full max-w-[440px] space-y-8">
+      <div className="w-full lg:w-[40%] min-h-[500px] lg:min-h-screen bg-black-secondary flex items-center justify-center p-4 sm:p-8 lg:p-12 border-t lg:border-l lg:border-t-0 border-gray-800">
+        <div className="w-full max-w-[440px] space-y-6 sm:space-y-8">
           {isSignUp ? (
             <SignUp 
               onAuthSuccess={handleAuthSuccess} 
@@ -55,10 +57,10 @@ function App() {
             />
           )}
 
-          <div className="mt-6 text-center">
+          <div className="mt-4 sm:mt-6 text-center">
             <button
               onClick={toggleAuthMode}
-              className="text-indigo-600 hover:text-indigo-500 font-medium"
+              className="text-indigo-600 hover:text-indigo-500 font-medium text-sm sm:text-base"
             >
               {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
             </button>

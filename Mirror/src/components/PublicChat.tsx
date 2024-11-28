@@ -369,26 +369,26 @@ function PublicChat() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-4">
+    <div className="min-h-screen bg-gray-900 text-white p-2 sm:p-4">
       <div className="max-w-4xl mx-auto">
-        <div className="bg-gray-800 rounded-lg shadow-lg p-4">
-          <div className="text-center mb-4">
+        <div className="bg-gray-800 rounded-lg shadow-lg p-3 sm:p-4">
+          <div className="text-center mb-3 sm:mb-4">
             {isLoadingUsernames ? (
               <div className="flex items-center justify-center gap-2">
-                <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                <h1 className="text-2xl font-bold text-gray-300">
+                <div className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                <h1 className="text-lg sm:text-2xl font-bold text-gray-300">
                   Loading chat details...
                 </h1>
               </div>
             ) : (
-              <h1 className="text-2xl font-bold">
+              <h1 className="text-lg sm:text-2xl font-bold break-words">
                 {currentUsername} chatting with {targetUsername}
               </h1>
             )}
-            <p className="text-gray-400 text-sm mt-1">Public Mirror Chat</p>
+            <p className="text-gray-400 text-xs sm:text-sm mt-1">Public Mirror Chat</p>
           </div>
 
-          <div className="h-[70vh] bg-gray-800 rounded-lg mb-4 overflow-hidden">
+          <div className="h-[60vh] sm:h-[70vh] bg-gray-800 rounded-lg mb-3 sm:mb-4 overflow-hidden">
             <div className="h-full overflow-y-auto space-y-4 p-4">
               {messages.map((msg) => (
                 <div 
@@ -426,13 +426,13 @@ function PublicChat() {
               onChange={(e) => setMessage(e.target.value)}
               onKeyDown={handleKeyPress}
               placeholder="Type your message..."
-              className="flex-1 bg-gray-700 text-white p-3 rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex-1 bg-gray-700 text-white p-2 sm:p-3 text-sm sm:text-base rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
               disabled={isSending || isLoadingReply}
             />
             <button
               type="submit"
               disabled={isSending || isLoadingReply || !message.trim()}
-              className="bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              className="bg-blue-600 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm sm:text-base"
             >
               {isSending || isLoadingReply ? (
                 <>

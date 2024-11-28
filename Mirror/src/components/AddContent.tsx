@@ -223,20 +223,20 @@ function AddContent({ hasUserContent }: { hasUserContent: boolean }) {
   }, []);
 
   return (
-    <div className="bg-gray-800 p-6 rounded-lg shadow-md w-full h-[982px] flex flex-col">
-      <h2 className="text-xl font-semibold text-white mb-4">Add New Content</h2>
+    <div className="bg-gray-800 p-3 sm:p-6 rounded-lg shadow-md w-full min-h-[500px] sm:h-[960px] flex flex-col">
+      <h2 className="text-lg sm:text-xl font-semibold text-white mb-3 sm:mb-4">Add New Content</h2>
       <textarea
         value={content}
         onChange={(e) => setContent(e.target.value)}
         placeholder="Enter content here..."
-        className="w-full h-32 p-3 bg-gray-700 text-white rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
+        className="w-full h-24 sm:h-32 p-2 sm:p-3 text-sm sm:text-base bg-gray-700 text-white rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 mb-3 sm:mb-4"
         disabled={isRecording}
       />
-      <div className="relative mb-4">
+      <div className="relative mb-3 sm:mb-4">
         <select
           value={contentType}
           onChange={(e) => setContentType(e.target.value)}
-          className="appearance-none w-full py-2 px-3 text-sm text-white bg-gray-700 rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors cursor-pointer"
+          className="appearance-none w-full py-2 px-3 text-xs sm:text-sm text-white bg-gray-700 rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="about" className="bg-gray-700 text-sm">Something about myself</option>
           <option value="likes" className="bg-gray-700 text-sm">Content I like</option>
@@ -248,11 +248,11 @@ function AddContent({ hasUserContent }: { hasUserContent: boolean }) {
           </svg>
         </div>
       </div>
-      <div className="flex gap-2 mb-6">
+      <div className="flex gap-2 mb-4 sm:mb-6">
         <button
           onClick={handleSubmit}
           disabled={isRecording || isSubmitting}
-          className="flex-1 bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition duration-300 disabled:opacity-50 flex items-center justify-center gap-2"
+          className="flex-1 bg-blue-600 text-white py-2 text-sm sm:text-base rounded-md hover:bg-blue-700 transition duration-300 disabled:opacity-50 flex items-center justify-center gap-2"
         >
           {isSubmitting ? (
             <>
@@ -266,16 +266,16 @@ function AddContent({ hasUserContent }: { hasUserContent: boolean }) {
         <button
           ref={micButtonRef}
           onMouseDown={startRecording}
-          className={`flex items-center justify-center w-12 h-12 bg-red-600 text-white rounded-full hover:bg-red-700 transition duration-300 ${isRecording ? 'animate-pulse' : ''}`}
+          className={`flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 bg-red-600 text-white rounded-full hover:bg-red-700 transition duration-300 ${isRecording ? 'animate-pulse' : ''}`}
         >
-          <FaMicrophone />
+          <FaMicrophone className="text-sm sm:text-base" />
         </button>
       </div>
 
-      <div className="flex-1 min-h-0">
-        <h3 className="text-lg font-semibold text-white mb-2">Your Documents</h3>
-        <div className="h-[calc(100%-2rem)] overflow-y-auto pr-2">
-          <ul className="list-disc list-inside text-white space-y-2">
+      <div className="flex-1 min-h-0 max-h-[300px] sm:max-h-none">
+        <h3 className="text-base sm:text-lg font-semibold text-white mb-2">Your Documents</h3>
+        <div className="h-[calc(100%-2rem)] overflow-y-auto">
+          <ul className="list-disc list-inside text-white space-y-2 text-sm sm:text-base">
             {documents.map((doc, index) => (
               <li key={index} className="flex justify-between items-start py-2 hover:bg-gray-700/50 rounded px-2">
                 <div className="flex-1 min-w-0">

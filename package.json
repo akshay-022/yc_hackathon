@@ -1,0 +1,14 @@
+{
+  "devDependencies": {
+    "nodemon": "^3.1.7",
+    "ts-node": "^10.9.2"
+  },
+  "scripts": {
+    "add-responsive": "node --loader ts-node/esm scripts/addResponsive.ts"
+  },
+  "type": "module",
+  "ts-node": {
+    "esm": true,
+    "experimentalSpecifiers": true
+  }
+}

@@ -7,7 +7,10 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "add-responsive": "ts-node scripts/addResponsive.ts",
+    "add-responsive:watch": "nodemon --watch src --ext tsx,jsx --exec yarn add-responsive",
+    "add-responsive:file": "ts-node scripts/addResponsive.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",
@@ -29,6 +32,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.13.0",
+    "@types/node": "^22.10.0",
     "@types/react": "^18.0.0",
     "@types/react-dom": "^18.0.0",
     "@vitejs/plugin-react": "^4.3.3",
@@ -37,6 +41,7 @@
     "eslint-plugin-react-hooks": "^5.0.0",
     "eslint-plugin-react-refresh": "^0.4.14",
     "globals": "^15.11.0",
+    "typescript": "^5.7.2",
     "vite": "^5.4.10"
   }
 }

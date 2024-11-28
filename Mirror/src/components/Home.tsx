@@ -414,35 +414,35 @@ function Home() {
 
   return (
     <div className="min-h-screen bg-black-primary text-white flex flex-col">
-      <div className="absolute top-4 right-4 z-10">
+      <div className="fixed top-4 right-4 z-10">
         <button
           onClick={handleLogout}
           disabled={isLoggingOut}
-          className="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition duration-300 disabled:opacity-50 shadow-md"
+          className="px-3 py-1.5 sm:px-4 sm:py-2 bg-red-500 text-white text-sm sm:text-base rounded-md hover:bg-red-600 transition duration-300 disabled:opacity-50 shadow-md"
         >
           {isLoggingOut ? 'Logging out...' : 'Logout'}
         </button>
       </div>
 
-      <div className="flex-1 p-4 w-full">
-        <div className={`w-[90%] mx-auto ${
+      <div className="flex-1 p-2 sm:p-4 w-full">
+        <div className={`w-full sm:w-[90%] mx-auto ${
           (!authStatus.twitter && !isReconnecting)
-            ? 'flex justify-center items-start' 
-            : 'grid grid-cols-[1fr_1fr]'
+            ? 'flex flex-col lg:flex-row justify-center items-center' 
+            : 'grid grid-cols-1 lg:grid-cols-[1fr_1fr]'
         } gap-4 min-h-full`}>
           {(authStatus.twitter || isReconnecting) && (
-            <div className="bg-black-secondary rounded-lg shadow-lg p-4 flex flex-col">
+            <div className="w-full bg-black-secondary rounded-lg shadow-lg p-3 sm:p-4 flex flex-col">
               <AddContent />
             </div>
           )}
 
-          <div className={`flex flex-col gap-4 ${!authStatus.twitter ? 'w-[500px]' : ''}`}>
-            <div className="bg-black-secondary rounded-lg shadow-lg p-4">
+          <div className={`w-full ${!authStatus.twitter ? 'max-w-[500px]' : ''}`}>
+            <div className="bg-black-secondary rounded-lg shadow-lg p-3 sm:p-4">
               <div className="text-center mb-4">
-                <h1 className="text-2xl font-bold text-white">
+                <h1 className="text-xl sm:text-2xl font-bold text-white">
                   Hello, {nameofuser || username}
                 </h1>
-                <p className="text-sm text-gray-400 mt-2">
+                <p className="text-xs sm:text-sm text-gray-400 mt-2">
                   {authStatus.twitter 
                     ? 'Your Twitter account is connected, access your digital conscience below.'
                     : 'Please connect your Twitter account to continue'
@@ -455,9 +455,9 @@ function Home() {
                   {authStatus.twitter ? <ConnectedBadge /> : <NotConnectedBadge />}
                   <button 
                     onClick={handleTwitterAuth} 
-                    className="flex-1 bg-blue-500 text-white py-2.5 px-4 rounded-md hover:bg-blue-600 transition duration-300 flex items-center justify-center gap-2"
+                    className="flex-1 bg-blue-500 text-white py-2 px-3 sm:px-4 rounded-md hover:bg-blue-600 transition duration-300 flex items-center justify-center gap-2 text-sm sm:text-base"
                   >
-                    <FontAwesomeIcon icon={faTwitter} className="w-5 h-5" />
+                    <FontAwesomeIcon icon={faTwitter} className="w-4 h-4 sm:w-5 sm:h-5" />
                     {authStatus.twitter ? 'Connected to Twitter' : 'Authenticate with Twitter'}
                   </button>
                 </div>
@@ -503,7 +503,7 @@ function Home() {
                   </button>
                   
                   {showPublicInfo && publicUrl && (
-                    <div className="mt-2 p-2 bg-gray-800 rounded-md space-y-2 max-h-[300px] overflow-auto">
+                    <div className="mt-2 p-2 bg-gray-800 rounded-md space-y-2 max-h-[300px] overflow-auto text-sm sm:text-base">
                       <div>
                         <p className="text-sm text-gray-400 mb-1">Public Chat URL:</p>
                         <input

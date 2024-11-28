@@ -51,12 +51,12 @@ function SignUp({ onAuthSuccess, onSwitchToSignIn, onSignUpSuccess = () => {} }:
   };
 
   return (
-    <div className="space-y-4">
-      <h2 className="text-2xl font-semibold text-center text-white">Create Account</h2>
-      <p className="text-gray-600 text-center text-gray-110">Sign up to get started</p>
+    <div className="space-y-4 w-full max-w-sm px-4 sm:px-0">
+      <h2 className="text-xl sm:text-2xl font-semibold text-center text-white">Create Account</h2>
+      <p className="text-sm sm:text-base text-gray-600 text-center text-gray-110">Sign up to get started</p>
       
       {isSuccess && (
-        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative text-center">
+        <div className="text-sm sm:text-base bg-green-100 border border-green-400 text-green-700 px-3 py-2 sm:px-4 sm:py-3 rounded relative text-center">
           Sign up successful!
         </div>
       )}
@@ -66,7 +66,7 @@ function SignUp({ onAuthSuccess, onSwitchToSignIn, onSignUpSuccess = () => {} }:
         placeholder="Name"
         value={name}
         onChange={(e) => setName(e.target.value)}
-        className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="w-full px-3 py-2 sm:px-4 sm:py-2 text-sm sm:text-base border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
         disabled={isLoading}
       />
       <input
@@ -74,7 +74,7 @@ function SignUp({ onAuthSuccess, onSwitchToSignIn, onSignUpSuccess = () => {} }:
         placeholder="Username"
         value={username}
         onChange={(e) => setUsername(e.target.value.toLowerCase())}
-        className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="w-full px-3 py-2 sm:px-4 sm:py-2 text-sm sm:text-base border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
         disabled={isLoading}
       />
       <input
@@ -82,7 +82,7 @@ function SignUp({ onAuthSuccess, onSwitchToSignIn, onSignUpSuccess = () => {} }:
         placeholder="Email"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
-        className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="w-full px-3 py-2 sm:px-4 sm:py-2 text-sm sm:text-base border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
         disabled={isLoading}
       />
       <input
@@ -90,17 +90,17 @@ function SignUp({ onAuthSuccess, onSwitchToSignIn, onSignUpSuccess = () => {} }:
         placeholder="Password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
-        className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="w-full px-3 py-2 sm:px-4 sm:py-2 text-sm sm:text-base border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
         disabled={isLoading}
       />
       <button
         onClick={handleSignUp}
         disabled={isLoading || isSuccess}
-        className="w-full bg-blue-500 text-white py-2 rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition duration-300"
+        className="w-full bg-blue-500 text-white py-2 text-sm sm:text-base rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition duration-300"
       >
         {isLoading ? 'Signing up...' : 'Sign Up'}
       </button>
-      {authError && <p className="text-red-500 text-sm text-center">{authError}</p>}
+      {authError && <p className="text-red-500 text-xs sm:text-sm text-center">{authError}</p>}
     </div>
   );
 }
