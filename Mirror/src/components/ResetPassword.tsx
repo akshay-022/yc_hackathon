@@ -41,47 +41,77 @@ function ResetPassword() {
   };
 
   return (
-    <div className="min-h-screen bg-black-primary flex items-center justify-center p-4">
-      <div className="w-full max-w-md px-4 sm:px-6 py-4 sm:py-6 bg-black-secondary rounded-lg">
-        <h1 className="text-xl sm:text-2xl font-bold text-center mb-4 sm:mb-6 text-white">
-          Reset Password
-        </h1>
+    <div className="min-h-screen bg-black-primary flex items-center justify-center px-4 sm:px-6 py-12 sm:py-16">
+      <div className="w-full max-w-[90%] sm:max-w-md bg-black-secondary rounded-lg shadow-xl">
+        <div className="px-4 sm:px-8 py-6 sm:py-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-center mb-6 sm:mb-8 text-white">
+            Reset Password
+          </h1>
 
-        {success ? (
-          <div className="p-2 sm:p-3 text-sm sm:text-base bg-green-500/20 border border-green-500/30 rounded text-green-200 text-center">
-            Password updated successfully! Redirecting...
-          </div>
-        ) : (
-          <div className="space-y-3 sm:space-y-4">
-            <input
-              type="password"
-              placeholder="New Password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              className="w-full px-3 py-2 sm:px-4 sm:py-2 text-sm sm:text-base bg-gray-800 border border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
-            />
-            <input
-              type="password"
-              placeholder="Confirm New Password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full px-3 py-2 sm:px-4 sm:py-2 text-sm sm:text-base bg-gray-800 border border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
-            />
-            <button
-              onClick={handleReset}
-              disabled={isLoading}
-              className="w-full bg-blue-600 text-white py-2 text-sm sm:text-base rounded-md hover:bg-blue-700 transition duration-300 disabled:opacity-50"
-            >
-              {isLoading ? 'Updating...' : 'Update Password'}
-            </button>
-
-            {error && (
-              <div className="p-2 sm:p-3 bg-red-500/20 border border-red-500/30 rounded text-red-200 text-xs sm:text-sm">
-                {error}
+          {success ? (
+            <div className="p-3 sm:p-4 text-sm sm:text-base bg-green-500/20 border border-green-500/30 rounded-lg text-green-200 text-center">
+              Password updated successfully! Redirecting...
+            </div>
+          ) : (
+            <div className="space-y-4 sm:space-y-6">
+              <div className="space-y-2">
+                <label htmlFor="newPassword" className="block text-sm sm:text-base text-gray-200">
+                  New Password
+                </label>
+                <input
+                  id="newPassword"
+                  type="password"
+                  placeholder="Enter new password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full px-4 py-3 text-base bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white placeholder-gray-400"
+                />
               </div>
-            )}
-          </div>
-        )}
+
+              <div className="space-y-2">
+                <label htmlFor="confirmPassword" className="block text-sm sm:text-base text-gray-200">
+                  Confirm Password
+                </label>
+                <input
+                  id="confirmPassword"
+                  type="password"
+                  placeholder="Confirm new password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full px-4 py-3 text-base bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white placeholder-gray-400"
+                />
+              </div>
+
+              <button
+                onClick={handleReset}
+                disabled={isLoading}
+                className="w-full bg-blue-600 text-white py-3 text-base rounded-lg hover:bg-blue-700 transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed mt-6"
+              >
+                {isLoading ? (
+                  <div className="flex items-center justify-center space-x-2">
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Updating...</span>
+                  </div>
+                ) : (
+                  'Update Password'
+                )}
+              </button>
+
+              {error && (
+                <div className="p-3 sm:p-4 mt-4 bg-red-500/20 border border-red-500/30 rounded-lg text-red-200 text-sm sm:text-base">
+                  {error}
+                </div>
+              )}
+
+              <button
+                onClick={() => navigate('/')}
+                className="w-full text-gray-400 hover:text-white text-sm sm:text-base transition duration-300 mt-4"
+              >
+                Back to Login
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
