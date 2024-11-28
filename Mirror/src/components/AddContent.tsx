@@ -196,24 +196,16 @@ function AddContent({ hasUserContent }: { hasUserContent: boolean }) {
     }
   };
 
-  useEffect(() => {
-    const handleMouseUpOrLeave = () => {
-      if (recognitionRef.current) {
-        stopRecording();
-      }
-    };
-
-    const micButton = micButtonRef.current;
-    if (micButton) {
-      micButton.addEventListener('mouseleave', handleMouseUpOrLeave);
-      micButton.addEventListener('mouseup', handleMouseUpOrLeave);
+  const toggleRecording = () => {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
     }
+  };
 
+  useEffect(() => {
     return () => {
-      if (micButton) {
-        micButton.removeEventListener('mouseleave', handleMouseUpOrLeave);
-        micButton.removeEventListener('mouseup', handleMouseUpOrLeave);
-      }
       if (recognitionRef.current) {
         recognitionRef.current.stop();
         recognitionRef.current = null;
@@ -265,8 +257,12 @@ function AddContent({ hasUserContent }: { hasUserContent: boolean }) {
         </button>
         <button
           ref={micButtonRef}
-          onMouseDown={startRecording}
-          className={`flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 bg-red-600 text-white rounded-full hover:bg-red-700 transition duration-300 ${isRecording ? 'animate-pulse' : ''}`}
+          onClick={toggleRecording}
+          className={`flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 ${
+            isRecording 
+              ? 'bg-red-700 text-white' 
+              : 'bg-red-600 text-white hover:bg-red-700'
+          } rounded-full transition duration-300 ${isRecording ? 'animate-pulse' : ''}`}
         >
           <FaMicrophone className="text-sm sm:text-base" />
         </button>
