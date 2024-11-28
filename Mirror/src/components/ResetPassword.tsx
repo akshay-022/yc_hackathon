@@ -10,6 +10,21 @@ function ResetPassword() {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
+  useEffect(() => {
+    // Get the access token from the URL
+    const hash = window.location.hash;
+    if (hash) {
+      const accessToken = new URLSearchParams(hash.substring(1)).get('access_token');
+      if (accessToken) {
+        // Set the session with the access token
+        supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: '',
+        });
+      }
+    }
+  }, []);
+
   const handleReset = async () => {
     try {
       setIsLoading(true);
