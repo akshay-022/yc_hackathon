@@ -7,9 +7,10 @@ import './index.css';
 import App from './App';
 import Home from './components/Home';
 import { BackendProvider } from './BackendContext';
+import PublicChat from './components/PublicChat';
+import ResetPassword from './components/ResetPassword';
 
 const BACKEND_URL = 'https://tznrpdmwzpuispggvpdk.supabase.co';
-import PublicChat from './components/PublicChat';
 
 const router = createBrowserRouter([
   {
@@ -27,6 +28,10 @@ const router = createBrowserRouter([
   {
     path: '/chat/:targetUserId',
     element: <PublicChat />
+  },
+  {
+    path: '/reset-password',
+    element: <ResetPassword />
   }
 ]);
 
