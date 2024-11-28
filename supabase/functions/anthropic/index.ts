@@ -148,11 +148,13 @@ Deno.serve(async (req) => {
     instructions.push(
         "3. Be honest if you don't know something; avoid claims about real individuals.",
         "4. Do not produce harmful, unethical, or inappropriate content.",
-        "5. Be CONCISE and REPLY LIKE A HUMAN WOULD IN A TEXT keeping the response to less than 2 sentences unless the user asks to elaborate."
+        "5. Be CONCISE and REPLY LIKE A HUMAN WOULD IN A TEXT keeping the response to less than 2 sentences unless the user asks to elaborate.",
+        "6. If the user asks you to elaborate and you can know the answer, do so."
     );
     instructions.push(`Reply only with the reply to the query response and NOTHING else. For example, 
       1. User: What do you like?, Reply: "I like apples."
-      2. User: Hi, Reply: "Hello"`);
+      2. User: Hi, Reply: "Hello"
+      3. User: Tell me more about thermometers, Reply: "Thermometers are devices that measure temperature."`);
 
     instructions.push(`The user's message is: ${content}`);
     const final_prompt = instructions.join('\n');
