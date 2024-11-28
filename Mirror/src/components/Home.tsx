@@ -83,6 +83,7 @@ function Home() {
   useEffect(() => {
     const checkAuthStatus = async () => {
       try {
+        setIsLoading(true);
         const { data: { session } } = await supabase.auth.getSession();
         const { data: { user } } = await supabase.auth.getUser();
         
@@ -92,119 +93,14 @@ function Home() {
         }
 
         if (user.identities) {
-          const status = {
+          setAuthStatus({
             twitter: user.identities.some((id: any) => id.provider === 'twitter'),
             notion: user.identities.some((id: any) => id.provider === 'notion')
-          };
-          
-          if (isReconnecting && status.twitter) {
-            setIsReconnecting(false);
-            localStorage.removeItem('isReconnectingTwitter');
-          }
-          if (isReconnecting && status.notion) {
-            setIsReconnecting(false);
-            localStorage.removeItem('isReconnectingNotion');
-          }
-          
-          
-          setAuthStatus(status);
-
-          
+          });
         }
-        if (session?.provider_token) {
-          const isNotionToken = session.provider_token.startsWith('ntn_');
-          const isTwitterToken = /^\d+-/.test(session.provider_token);
-
-          console.log('Is Notion Token:', isNotionToken);
-          console.log('Is Twitter Token:', isTwitterToken);
-
-          if (user.identities) {
-            const status = {
-              twitter: user.identities.some((id: any) => id.provider === 'twitter'),
-              notion: user.identities.some((id: any) => id.provider === 'notion')
-            };
-            console.log('Auth status:', status);
-            setAuthStatus(status);
-          console.log(user.user_metadata)
-          if (isTwitterToken) {
-            const twitterIdentity = user.identities?.find(
-              (identity: any) => identity.provider === 'twitter'
-            );
-            const { error: updateError } = await supabase
-              .from('profiles')
-              .update({ 
-                twitter_username: user.user_metadata?.user_name || twitterIdentity?.identity_data?.user_name || null,
-                twitter_access_token: session?.provider_token || null,
-                twitter_refresh_token: session?.provider_refresh_token || null,
-                twitter_token_expires_at: session?.expires_at ? null : null,
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', user.id);
-
-            if (updateError) console.error('Error updating Twitter tokens:', updateError);
-            else console.log('Twitter tokens updated successfully');
-          }
-
-          if (isNotionToken) {
-            const { data: profile } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', user.id)
-              .single();
-
-            if (profile) {
-              const { error: updateError } = await supabase
-                .from('profiles')
-                .update({ 
-                  notion_access_token: session?.provider_token || null,
-                  notion_refresh_token: session?.provider_refresh_token || null,
-                  notion_token_expires_at: session?.expires_at ? null : null,
-                  updated_at: new Date().toISOString()
-                })
-                .eq('id', user.id);
-
-              if (updateError) console.error('Error updating Notion tokens:', updateError);
-              else console.log('Notion tokens updated successfully');
-            }
-          }
-        }
-      }
-
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('username, name')
-          .eq('id', user.id)
-          .single();
         
-        if (profile?.username) {
-          setUsername(profile.username);
-          setName(profile.name);
-        }
-
-        // Check if we need to clean up old identities
-        const oldTwitterIdentity = localStorage.getItem('twitterIdentityToUnlink');
-        const oldNotionIdentity = localStorage.getItem('notionIdentityToUnlink');
-
-        if (oldTwitterIdentity) {
-          try {
-            await supabase.auth.unlinkIdentity(JSON.parse(oldTwitterIdentity));
-          } catch (unlinkError) {
-            console.error('Error unlinking old Twitter identity:', unlinkError);
-          }
-          localStorage.removeItem('twitterIdentityToUnlink');
-        }
-
-        if (oldNotionIdentity) {
-          try {
-            await supabase.auth.unlinkIdentity(JSON.parse(oldNotionIdentity));
-          } catch (unlinkError) {
-            console.error('Error unlinking old Notion identity:', unlinkError);
-          }
-          localStorage.removeItem('notionIdentityToUnlink');
-        }
-
       } catch (error) {
-        console.error('Error:', error);
+        console.error('Error checking auth status:', error);
         navigate('/');
       } finally {
         setIsLoading(false);
@@ -212,19 +108,19 @@ function Home() {
     };
 
     checkAuthStatus();
-
-    const { data: subscription } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT' || !session) {
+    
+    const subscription = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
         navigate('/');
+      } else if (event === 'USER_UPDATED') {
+        checkAuthStatus();
       }
     });
 
     return () => {
-      if (subscription && typeof subscription.unsubscribe === 'function') {
-        subscription.unsubscribe();
-      }
+      subscription.data.subscription.unsubscribe();
     };
-  }, [navigate, isReconnecting]);
+  }, [navigate]);
 
   // Show loading state
   if (isLoading) {
@@ -250,27 +146,47 @@ function Home() {
 
   const handleTwitterAuth = async () => {
     try {
-      // First try to link
+      setIsSubmitting(true);
+
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { identities } } = await supabase.auth.getUserIdentities();
+      
+      if (!user) {
+        throw new Error('No user found');
+      }
+
+      const twitterIdentity = identities?.find((identity) => identity.provider === 'twitter');
+      
+      if (twitterIdentity) {
+        await supabase.auth.unlinkIdentity(twitterIdentity);
+      }
+
+      const redirectUrl = `${window.location.origin}/home`;
+      
       const { data, error } = await supabase.auth.linkIdentity({
         provider: 'twitter',
         options: {
-          redirectTo: `${window.location.origin}/home`
+          redirectTo: redirectUrl,
+          scopes: 'tweet.read users.read',
         }
       });
 
       if (error) {
-        // Show error message to user
-        setAuthError('This Twitter account is already linked to another user. Please use a different Twitter account or unlink it from the other user first.');
-        console.log(error)
+        console.error('Twitter auth error:', error);
+        setAuthError('Failed to authenticate with Twitter. Please try again.');
         return;
       }
 
-      if (error) throw error;
-      if (data?.url) window.location.href = data.url;
+      if (data?.url) {
+        window.location.href = data.url;
+      }
       
     } catch (error: any) {
       console.error('Twitter auth error:', error.message);
+      setAuthError(error.message);
       setAuthStatus(prev => ({ ...prev, twitter: false }));
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -455,10 +371,20 @@ function Home() {
                   {authStatus.twitter ? <ConnectedBadge /> : <NotConnectedBadge />}
                   <button 
                     onClick={handleTwitterAuth} 
-                    className="flex-1 bg-blue-500 text-white py-2 px-3 sm:px-4 rounded-md hover:bg-blue-600 transition duration-300 flex items-center justify-center gap-2 text-sm sm:text-base"
+                    disabled={isSubmitting}
+                    className="flex-1 bg-blue-500 text-white py-2 px-3 sm:px-4 rounded-md hover:bg-blue-600 transition duration-300 flex items-center justify-center gap-2 text-sm sm:text-base disabled:opacity-50"
                   >
-                    <FontAwesomeIcon icon={faTwitter} className="w-4 h-4 sm:w-5 sm:h-5" />
-                    {authStatus.twitter ? 'Connected to Twitter' : 'Authenticate with Twitter'}
+                    {isSubmitting ? (
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span>Connecting...</span>
+                      </div>
+                    ) : (
+                      <>
+                        <FontAwesomeIcon icon={faTwitter} className="w-4 h-4 sm:w-5 sm:h-5" />
+                        {authStatus.twitter ? 'Connected to Twitter' : 'Authenticate with Twitter'}
+                      </>
+                    )}
                   </button>
                 </div>
 
